@@ -155,10 +155,16 @@
     font-weight:700;
     cursor:pointer;
   }
-  .strength-fields{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
-  .strength-fields input{
-    background:var(--card2);border:1px solid #2c3968;border-radius:10px;
-    padding:9px 10px;color:var(--text);font-size:.9rem;
+  .strength-fields{grid-column:1/-1;}
+  .set-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px;}
+  .set-row .set-num{font-size:.72rem;color:var(--sub);white-space:nowrap;}
+  .set-row input{
+    background:var(--card2);border:1px solid #2c3968;border-radius:8px;
+    padding:7px 8px;color:var(--text);font-size:.85rem;width:100%;
+  }
+  .wnote-input{
+    width:100%;background:var(--card2);border:1px solid #2c3968;border-radius:10px;
+    padding:9px 10px;color:var(--text);font-size:.85rem;margin-top:8px;
   }
 
   .select-like{
@@ -476,9 +482,9 @@
           <option>Other</option>
         </select>
         <div class="strength-fields" id="strengthFields" style="display:none;">
-          <input id="wWeight" type="number" min="0" step="0.5" placeholder="Weight (lb)">
-          <input id="wReps" type="number" min="0" placeholder="Reps">
-          <input id="wSets" type="number" min="0" placeholder="Sets">
+          <div id="setRows"></div>
+          <button type="button" class="add-ingredient-btn" onclick="addSetRow()">+ Add another set (up to 5)</button>
+          <input type="text" id="wNote" class="wnote-input" placeholder="Note (optional) — e.g. felt strong, used a spotter">
         </div>
         <input id="wDuration" type="number" min="0" placeholder="Duration (min)">
         <input id="wCals" type="number" min="0" placeholder="Calories burned">
@@ -791,7 +797,7 @@ function defaultData(){
     weightLogs: {}, // date -> weight(lbs)
     goToWorkouts: [
       {id:'w1', name:'30-min Run', type:'Cardio', duration:30, cals:300},
-      {id:'w2', name:'Bench Press', type:'Strength', duration:0, cals:0, weight:135, reps:8, sets:3},
+      {id:'w2', name:'Bench Press', type:'Strength', duration:0, cals:0, note:'', setsList:[{weight:135,reps:8},{weight:135,reps:8},{weight:135,reps:8}]},
       {id:'w3', name:'Yoga / Mobility', type:'Mobility', duration:30, cals:120},
       {id:'w4', name:'HIIT Session', type:'Cardio', duration:25, cals:280}
     ],
@@ -1140,9 +1146,74 @@ function addEntry(ev){
 }
 
 /* ---------- Workouts ---------- */
+const MAX_SETS = 5;
+
 function toggleStrengthFields(){
   const isStrength = document.getElementById('wType').value === 'Strength';
-  document.getElementById('strengthFields').style.display = isStrength ? 'grid' : 'none';
+  document.getElementById('strengthFields').style.display = isStrength ? 'block' : 'none';
+  if(isStrength && document.querySelectorAll('#setRows .set-row').length===0){
+    resetSetRows();
+  }
+}
+
+function addSetRow(prefillWeight, prefillReps){
+  const container = document.getElementById('setRows');
+  const count = container.children.length;
+  if(count >= MAX_SETS){ showToast('Max 5 sets per exercise'); return; }
+  const row = document.createElement('div');
+  row.className = 'set-row';
+  row.innerHTML =
+    '<span class="set-num">Set '+(count+1)+'</span>'+
+    '<input type="number" min="0" step="0.5" class="set-weight" placeholder="Weight (lb)">'+
+    '<input type="number" min="0" class="set-reps" placeholder="Reps">'+
+    '<button type="button" class="ing-remove" onclick="removeSetRow(this)">✕</button>';
+  container.appendChild(row);
+  if(prefillWeight!==undefined){
+    row.querySelector('.set-weight').value = prefillWeight;
+    row.querySelector('.set-reps').value = prefillReps;
+  }
+  renumberSetRows();
+}
+
+function removeSetRow(btn){
+  const container = document.getElementById('setRows');
+  if(container.children.length <= 1){ showToast('Keep at least 1 set'); return; }
+  btn.closest('.set-row').remove();
+  renumberSetRows();
+}
+
+function renumberSetRows(){
+  document.querySelectorAll('#setRows .set-row').forEach((r,i)=>{
+    r.querySelector('.set-num').textContent = 'Set '+(i+1);
+  });
+}
+
+function resetSetRows(){
+  document.getElementById('setRows').innerHTML = '';
+  addSetRow();
+}
+
+function collectSets(){
+  const rows = document.querySelectorAll('#setRows .set-row');
+  const list = [];
+  rows.forEach(r=>{
+    const weight = Number(r.querySelector('.set-weight').value)||0;
+    const reps = Number(r.querySelector('.set-reps').value)||0;
+    if(weight>0 || reps>0) list.push({weight, reps});
+  });
+  return list;
+}
+
+/* Backward-compatible: old entries stored a single weight/reps/sets-count instead of setsList */
+function getSetsList(w){
+  if(Array.isArray(w.setsList) && w.setsList.length) return w.setsList;
+  if(w.weight!==undefined && w.reps!==undefined){
+    const count = Number(w.sets)||1;
+    const list = [];
+    for(let i=0;i<count;i++) list.push({weight:Number(w.weight)||0, reps:Number(w.reps)||0});
+    return list;
+  }
+  return [];
 }
 
 function getTodayWorkouts(){
@@ -1156,7 +1227,9 @@ function renderQuickWorkoutGrid(){
   data.goToWorkouts.forEach(w=>{
     const btn = document.createElement('button');
     btn.className = 'quick-btn';
-    const sub = w.type==='Strength' ? (w.weight+' lb × '+w.reps+' × '+w.sets+' sets') : (w.type+' · '+w.duration+' min · '+w.cals+' cal');
+    const sub = w.type==='Strength'
+      ? getSetsList(w).map(s=> s.weight+'×'+s.reps).join(', ')
+      : (w.type+' · '+w.duration+' min · '+w.cals+' cal');
     btn.innerHTML = '<b>'+escapeHtml(w.name)+'</b><span>'+sub+'</span>';
     btn.onclick = ()=> quickAddWorkout(w);
     grid.appendChild(btn);
@@ -1172,9 +1245,8 @@ function quickAddWorkout(w){
   const log = getTodayWorkouts();
   const entry = {id:'we'+Date.now(), name:w.name, type:w.type, duration:Number(w.duration)||0, cals:Number(w.cals)||0, time:Date.now()};
   if(w.type==='Strength'){
-    entry.weight = Number(w.weight)||0;
-    entry.reps = Number(w.reps)||0;
-    entry.sets = Number(w.sets)||0;
+    entry.setsList = getSetsList(w);
+    entry.note = w.note || '';
   }
   log.push(entry);
   saveData();
@@ -1193,11 +1265,10 @@ function addWorkout(ev){
   const entry = {id:'we'+Date.now(), name, type, duration, cals, time:Date.now()};
   const gotoEntry = {id:'gw'+Date.now(), name, type, duration, cals};
   if(type==='Strength'){
-    const weight = Number(document.getElementById('wWeight').value)||0;
-    const reps = Number(document.getElementById('wReps').value)||0;
-    const sets = Number(document.getElementById('wSets').value)||0;
-    entry.weight = weight; entry.reps = reps; entry.sets = sets;
-    gotoEntry.weight = weight; gotoEntry.reps = reps; gotoEntry.sets = sets;
+    const setsList = collectSets();
+    const note = document.getElementById('wNote').value.trim();
+    entry.setsList = setsList; entry.note = note;
+    gotoEntry.setsList = setsList; gotoEntry.note = note;
   }
 
   const log = getTodayWorkouts();
@@ -1210,6 +1281,8 @@ function addWorkout(ev){
   saveData();
   ev.target.reset();
   document.getElementById('wType').value = type;
+  document.getElementById('wNote').value = '';
+  resetSetRows();
   toggleStrengthFields();
   renderWorkoutSection();
   showToast(name+' logged ✓');
@@ -1234,7 +1307,13 @@ function renderWorkoutSection(){
   log.forEach(w=>{
     const row = document.createElement('div');
     row.className = 'entry';
-    const sub = w.type==='Strength' ? (w.weight+' lb × '+w.reps+' reps × '+w.sets+' sets') : (w.type+' · '+w.duration+' min');
+    let sub;
+    if(w.type==='Strength'){
+      sub = getSetsList(w).map(s=> s.weight+'lb×'+s.reps).join(', ');
+      if(w.note) sub += '<br>"'+escapeHtml(w.note)+'"';
+    } else {
+      sub = w.type+' · '+w.duration+' min';
+    }
     row.innerHTML = '<div><div class="name">'+escapeHtml(w.name)+'</div>'+
       '<div class="macros">'+sub+'</div></div>'+
       '<div class="right"><span class="cals">'+w.cals+' cal</span>'+
@@ -1470,7 +1549,13 @@ function showCalendarDay(dstr){
   }
   let html = '<h4 style="margin:6px 0;color:var(--sub);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;">'+fmtShort(dstr)+'</h4>';
   list.forEach(w=>{
-    const sub = w.type==='Strength' ? (w.weight+' lb × '+w.reps+' reps × '+w.sets+' sets') : (w.type+' · '+w.duration+' min');
+    let sub;
+    if(w.type==='Strength'){
+      sub = getSetsList(w).map(s=> s.weight+'lb×'+s.reps).join(', ');
+      if(w.note) sub += '<br>"'+escapeHtml(w.note)+'"';
+    } else {
+      sub = w.type+' · '+w.duration+' min';
+    }
     html += '<div class="entry"><div><div class="name">'+escapeHtml(w.name)+'</div><div class="macros">'+sub+'</div></div><div class="cals">'+w.cals+' cal</div></div>';
   });
   detail.innerHTML = html;
@@ -1490,8 +1575,15 @@ function exerciseHistory(name){
   Object.keys(data.workoutLogs).sort().forEach(date=>{
     const entries = data.workoutLogs[date].filter(w=> w.type==='Strength' && w.name.toLowerCase()===name.toLowerCase());
     if(entries.length===0) return;
-    const best = entries.reduce((a,b)=> (Number(b.weight)>Number(a.weight)? b:a));
-    rows.push({date, weight:Number(best.weight)||0, reps:Number(best.reps)||0, sets:Number(best.sets)||0});
+    // Use the heaviest single set logged that day (across all entries) as the day's representative set
+    let topSet = null;
+    entries.forEach(e=>{
+      getSetsList(e).forEach(s=>{
+        if(!topSet || Number(s.weight) > Number(topSet.weight)) topSet = s;
+      });
+    });
+    if(!topSet) return;
+    rows.push({date, weight:Number(topSet.weight)||0, reps:Number(topSet.reps)||0});
   });
   return rows;
 }
@@ -2088,6 +2180,7 @@ function showToast(msg){
 
 /* ---------- Init ---------- */
 resetIngredientRows();
+resetSetRows();
 document.getElementById('ingredientRows').addEventListener('input', recalcMealTotals);
 renderToday();
 renderTip();
