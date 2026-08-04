@@ -671,6 +671,39 @@
   </div>
 </div>
 
+<!-- Edit workout modal -->
+<div class="modal-bg" id="workoutEditModal">
+  <div class="modal">
+    <h3>✏️ Edit workout</h3>
+    <div class="field">
+      <label>Workout or exercise name</label>
+      <input type="text" id="editWName">
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select id="editWType" onchange="toggleEditStrengthFields()">
+        <option>Cardio</option>
+        <option>Strength</option>
+        <option>Mobility</option>
+        <option>Sport</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="strength-fields" id="editStrengthFields" style="display:none;">
+      <div id="editSetRows"></div>
+      <button type="button" class="add-ingredient-btn" onclick="addSetRow('editSetRows')">+ Add another set (up to 5)</button>
+      <input type="text" id="editWNote" class="wnote-input" placeholder="Note (optional) — e.g. felt strong, used a spotter">
+    </div>
+    <div class="row2b">
+      <div class="field"><label>Duration (min)</label><input type="number" id="editWDuration" min="0"></div>
+      <div class="field"><label>Calories burned</label><input type="number" id="editWCals" min="0"></div>
+    </div>
+    <button class="save-modal" onclick="saveWorkoutEdit()">Save changes</button>
+    <button type="button" class="suggest-btn" style="color:var(--coral);border-color:var(--coral);" onclick="deleteWorkoutEdit()">🗑️ Delete this workout</button>
+    <button class="close-modal" onclick="closeWorkoutEdit()">Cancel</button>
+  </div>
+</div>
+
 <!-- Settings modal -->
 <div class="modal-bg" id="settingsModal">
   <div class="modal">
@@ -1168,16 +1201,19 @@ function addEntry(ev){
 /* ---------- Workouts ---------- */
 const MAX_SETS = 5;
 
-function toggleStrengthFields(){
-  const isStrength = document.getElementById('wType').value === 'Strength';
-  document.getElementById('strengthFields').style.display = isStrength ? 'block' : 'none';
-  if(isStrength && document.querySelectorAll('#setRows .set-row').length===0){
-    resetSetRows();
+function toggleStrengthFieldsFor(typeSelectId, fieldsId, setRowsId){
+  const isStrength = document.getElementById(typeSelectId).value === 'Strength';
+  document.getElementById(fieldsId).style.display = isStrength ? 'block' : 'none';
+  if(isStrength && document.querySelectorAll('#'+setRowsId+' .set-row').length===0){
+    resetSetRows(setRowsId);
   }
 }
+function toggleStrengthFields(){ toggleStrengthFieldsFor('wType','strengthFields','setRows'); }
+function toggleEditStrengthFields(){ toggleStrengthFieldsFor('editWType','editStrengthFields','editSetRows'); }
 
-function addSetRow(prefillWeight, prefillReps){
-  const container = document.getElementById('setRows');
+function addSetRow(containerId, prefillWeight, prefillReps){
+  containerId = containerId || 'setRows';
+  const container = document.getElementById(containerId);
   const count = container.children.length;
   if(count >= MAX_SETS){ showToast('Max 5 sets per exercise'); return; }
   const row = document.createElement('div');
@@ -1192,29 +1228,32 @@ function addSetRow(prefillWeight, prefillReps){
     row.querySelector('.set-weight').value = prefillWeight;
     row.querySelector('.set-reps').value = prefillReps;
   }
-  renumberSetRows();
+  renumberSetRows(containerId);
 }
 
 function removeSetRow(btn){
-  const container = document.getElementById('setRows');
+  const container = btn.closest('.set-row').parentElement;
   if(container.children.length <= 1){ showToast('Keep at least 1 set'); return; }
   btn.closest('.set-row').remove();
-  renumberSetRows();
+  renumberSetRows(container.id);
 }
 
-function renumberSetRows(){
-  document.querySelectorAll('#setRows .set-row').forEach((r,i)=>{
+function renumberSetRows(containerId){
+  containerId = containerId || 'setRows';
+  document.querySelectorAll('#'+containerId+' .set-row').forEach((r,i)=>{
     r.querySelector('.set-num').textContent = 'Set '+(i+1);
   });
 }
 
-function resetSetRows(){
-  document.getElementById('setRows').innerHTML = '';
-  addSetRow();
+function resetSetRows(containerId){
+  containerId = containerId || 'setRows';
+  document.getElementById(containerId).innerHTML = '';
+  addSetRow(containerId);
 }
 
-function collectSets(){
-  const rows = document.querySelectorAll('#setRows .set-row');
+function collectSets(containerId){
+  containerId = containerId || 'setRows';
+  const rows = document.querySelectorAll('#'+containerId+' .set-row');
   const list = [];
   rows.forEach(r=>{
     const weight = Number(r.querySelector('.set-weight').value)||0;
@@ -1374,6 +1413,89 @@ function deleteWorkout(id){
   renderWorkoutSection();
 }
 
+/* ---------- Edit a logged workout (any date, not just today) ---------- */
+window._editingWorkout = null;
+
+function openWorkoutEdit(date, id){
+  const entry = (data.workoutLogs[date]||[]).find(w=>w.id===id);
+  if(!entry) return;
+  window._editingWorkout = {date, id};
+
+  document.getElementById('editWName').value = entry.name;
+  document.getElementById('editWType').value = entry.type;
+  document.getElementById('editWDuration').value = entry.duration || '';
+  document.getElementById('editWCals').value = entry.cals || '';
+
+  document.getElementById('editSetRows').innerHTML = '';
+  if(entry.type==='Strength'){
+    const sets = getSetsList(entry);
+    if(sets.length===0){
+      addSetRow('editSetRows');
+    } else {
+      sets.forEach(s=> addSetRow('editSetRows', s.weight, s.reps));
+    }
+    document.getElementById('editWNote').value = entry.note || '';
+  } else {
+    addSetRow('editSetRows');
+    document.getElementById('editWNote').value = '';
+  }
+  toggleEditStrengthFields();
+
+  document.getElementById('workoutEditModal').classList.add('open');
+}
+
+function closeWorkoutEdit(){
+  document.getElementById('workoutEditModal').classList.remove('open');
+  window._editingWorkout = null;
+}
+
+function refreshWorkoutViews(date){
+  if(date===currentDate) renderWorkoutSection();
+  const detail = document.getElementById('calendarDayDetail');
+  if(detail && detail.dataset.shownDate === date) showCalendarDay(date);
+  renderCalendar();
+  renderStrengthSection();
+}
+
+function saveWorkoutEdit(){
+  if(!window._editingWorkout) return;
+  const {date, id} = window._editingWorkout;
+  const entry = (data.workoutLogs[date]||[]).find(w=>w.id===id);
+  if(!entry) return;
+
+  const name = document.getElementById('editWName').value.trim();
+  if(!name){ showToast('Name is required'); return; }
+
+  entry.name = name;
+  entry.type = document.getElementById('editWType').value;
+  entry.duration = Number(document.getElementById('editWDuration').value)||0;
+  entry.cals = Number(document.getElementById('editWCals').value)||0;
+
+  if(entry.type==='Strength'){
+    entry.setsList = collectSets('editSetRows');
+    entry.note = document.getElementById('editWNote').value.trim();
+  } else {
+    delete entry.setsList;
+    delete entry.note;
+    delete entry.weight; delete entry.reps; delete entry.sets;
+  }
+
+  saveData();
+  closeWorkoutEdit();
+  refreshWorkoutViews(date);
+  showToast('Workout updated ✓');
+}
+
+function deleteWorkoutEdit(){
+  if(!window._editingWorkout) return;
+  const {date, id} = window._editingWorkout;
+  data.workoutLogs[date] = (data.workoutLogs[date]||[]).filter(w=>w.id!==id);
+  saveData();
+  closeWorkoutEdit();
+  refreshWorkoutViews(date);
+  showToast('Workout deleted');
+}
+
 function renderWorkoutSection(){
   renderQuickWorkoutGrid();
   const log = getTodayWorkouts();
@@ -1396,7 +1518,8 @@ function renderWorkoutSection(){
     row.innerHTML = '<div><div class="name">'+escapeHtml(w.name)+'</div>'+
       '<div class="macros">'+sub+'</div></div>'+
       '<div class="right"><span class="cals">'+w.cals+' cal</span>'+
-      '<button class="del-btn" onclick="deleteWorkout(\''+w.id+'\')">✕</button></div>';
+      '<button class="del-btn" title="Edit" onclick="openWorkoutEdit(\''+currentDate+'\',\''+w.id+'\')">✏️</button>'+
+      '<button class="del-btn" title="Delete" onclick="deleteWorkout(\''+w.id+'\')">✕</button></div>';
     container.appendChild(row);
   });
 }
@@ -1630,6 +1753,7 @@ function renderCalendar(){
 function showCalendarDay(dstr){
   const list = data.workoutLogs[dstr] || [];
   const detail = document.getElementById('calendarDayDetail');
+  detail.dataset.shownDate = dstr;
   if(list.length===0){
     detail.innerHTML = '<div class="empty">No workouts logged on '+fmtShort(dstr)+'.</div>';
     return;
@@ -1643,7 +1767,9 @@ function showCalendarDay(dstr){
     } else {
       sub = w.type+' · '+w.duration+' min';
     }
-    html += '<div class="entry"><div><div class="name">'+escapeHtml(w.name)+'</div><div class="macros">'+sub+'</div></div><div class="cals">'+w.cals+' cal</div></div>';
+    html += '<div class="entry"><div><div class="name">'+escapeHtml(w.name)+'</div><div class="macros">'+sub+'</div></div>'+
+      '<div class="right"><span class="cals">'+w.cals+' cal</span>'+
+      '<button class="del-btn" title="Edit" onclick="openWorkoutEdit(\''+dstr+'\',\''+w.id+'\')">✏️</button></div></div>';
   });
   detail.innerHTML = html;
 }
