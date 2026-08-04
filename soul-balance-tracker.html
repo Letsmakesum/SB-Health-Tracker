@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Soul Balance — Meal & Workout Tracker</title>
 <link rel="icon" href="data:,">
 <style>
@@ -144,6 +144,8 @@
     color:var(--text);
     font-size:.9rem;
   }
+  /* Inputs (not selects) need >=16px or iOS Safari auto-zooms the page on focus */
+  form.entry-form input{font-size:16px;}
   form.entry-form input.full, form.entry-form select.full{grid-column:1/-1;}
   form.entry-form button{
     grid-column:1/-1;
@@ -160,11 +162,11 @@
   .set-row .set-num{font-size:.72rem;color:var(--sub);white-space:nowrap;}
   .set-row input{
     background:var(--card2);border:1px solid #2c3968;border-radius:8px;
-    padding:7px 8px;color:var(--text);font-size:.85rem;width:100%;
+    padding:7px 6px;color:var(--text);font-size:16px;width:100%;
   }
   .wnote-input{
     width:100%;background:var(--card2);border:1px solid #2c3968;border-radius:10px;
-    padding:9px 10px;color:var(--text);font-size:.85rem;margin-top:8px;
+    padding:9px 10px;color:var(--text);font-size:16px;margin-top:8px;
   }
 
   .select-like{
@@ -177,15 +179,20 @@
   .ing-row1{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
   .ing-row1 .ing-name{
     flex:1;background:var(--card);border:1px solid #2c3968;border-radius:8px;
-    padding:7px 8px;color:var(--text);font-size:.82rem;
+    padding:7px 8px;color:var(--text);font-size:16px;
   }
   .ing-remove{background:none;border:none;color:var(--coral);font-size:1rem;cursor:pointer;flex:none;}
   .ing-row2{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:4px;}
-  .ing-row3{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
-  .ingredient-row .ing-row2 input, .ingredient-row .ing-row2 select,
+  .ing-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
+  .ingredient-row .ing-row2 select{
+    background:var(--card) !important;border:1px solid #2c3968;border-radius:6px !important;
+    padding:5px 4px !important;color:var(--text);font-size:.72rem;width:100%;text-align:center;
+  }
+  /* Inputs need >=16px to avoid iOS Safari's auto-zoom-on-focus; selects are exempt (native picker, no zoom) */
+  .ingredient-row .ing-row2 input,
   .ingredient-row .ing-row3 input{
     background:var(--card) !important;border:1px solid #2c3968;border-radius:6px !important;
-    padding:5px 4px !important;color:var(--text);font-size:.68rem !important;width:100%;text-align:center;
+    padding:5px 3px !important;color:var(--text);font-size:16px !important;width:100%;text-align:center;
   }
   .ing-row3-label{font-size:.62rem;color:var(--sub);text-align:center;margin-top:2px;}
   .add-ingredient-btn{
@@ -349,6 +356,7 @@
     width:100%;background:var(--card2);border:1px solid #2c3968;
     border-radius:10px;padding:9px 10px;color:var(--text);font-size:.9rem;
   }
+  .field input{font-size:16px;}
   .row2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
   .row2b{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .close-modal, .save-modal, .suggest-btn{
@@ -974,7 +982,6 @@ function addIngredientRow(prefill){
       '<input type="number" min="0" step="0.1" class="ing-p" placeholder="Protein g">'+
       '<input type="number" min="0" step="0.1" class="ing-c" placeholder="Carbs g">'+
       '<input type="number" min="0" step="0.1" class="ing-f" placeholder="Fat g">'+
-      '<input type="text" disabled placeholder="↳ auto-sums" style="opacity:.5;">'+
     '</div>';
   container.appendChild(row);
   if(prefill){
