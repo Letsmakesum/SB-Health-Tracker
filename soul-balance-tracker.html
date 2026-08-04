@@ -488,6 +488,7 @@
         </div>
         <input id="wDuration" type="number" min="0" placeholder="Duration (min)">
         <input id="wCals" type="number" min="0" placeholder="Calories burned">
+        <button type="button" class="add-ingredient-btn" style="grid-column:1/-1;" onclick="estimateCaloriesBurned()">⚡ Estimate calories burned</button>
         <label style="grid-column:1/-1;font-size:.75rem;color:var(--sub);display:flex;align-items:center;gap:6px;">
           <input type="checkbox" id="wSave" style="width:auto;"> Save as go-to workout
         </label>
@@ -1214,6 +1215,65 @@ function getSetsList(w){
     return list;
   }
   return [];
+}
+
+/* Calorie-burn estimate — standard MET (metabolic equivalent) formula:
+   calories = MET x bodyweight(kg) x duration(hours). MET values are typical
+   published estimates for each activity; actual burn varies by individual effort. */
+function estimateMET(type, name){
+  const n = (name||'').toLowerCase();
+  if(type==='Cardio'){
+    if(n.includes('hiit')) return 8.5;
+    if(n.includes('run') || n.includes('jog')) return 9.8;
+    if(n.includes('sprint')) return 11;
+    if(n.includes('bike') || n.includes('cycl') || n.includes('spin')) return 7.5;
+    if(n.includes('swim')) return 8.0;
+    if(n.includes('walk') || n.includes('hik')) return 3.8;
+    if(n.includes('elliptical')) return 5.0;
+    if(n.includes('stair') || n.includes('climb')) return 8.8;
+    if(n.includes('row')) return 7.0;
+    return 7.0; // generic moderate cardio
+  }
+  if(type==='Strength'){
+    if(n.includes('circuit') || n.includes('crossfit')) return 6.0;
+    return 5.0; // vigorous resistance training
+  }
+  if(type==='Mobility'){
+    if(n.includes('yoga')) return 2.5;
+    if(n.includes('stretch') || n.includes('foam')) return 2.3;
+    if(n.includes('pilates')) return 3.0;
+    return 3.0;
+  }
+  if(type==='Sport'){
+    if(n.includes('basketball')) return 7.8;
+    if(n.includes('soccer') || n.includes('football')) return 8.0;
+    if(n.includes('tennis')) return 7.3;
+    if(n.includes('golf')) return 3.5;
+    return 7.0;
+  }
+  return 4.0; // Other — generic light-moderate activity
+}
+
+function estimateCaloriesBurned(){
+  const type = document.getElementById('wType').value;
+  const name = document.getElementById('wName').value;
+  let durationMin = Number(document.getElementById('wDuration').value)||0;
+
+  if(durationMin<=0 && type==='Strength'){
+    const setCount = Math.max(1, document.querySelectorAll('#setRows .set-row').length);
+    durationMin = setCount * 3; // ~3 min per set including rest, a reasonable default
+    document.getElementById('wDuration').value = durationMin;
+  }
+  if(durationMin<=0){
+    showToast('Add a duration first (or add sets, for Strength)');
+    return;
+  }
+
+  const met = estimateMET(type, name);
+  const weightKg = latestWeight() * 0.453592;
+  const cals = Math.round(met * weightKg * (durationMin/60));
+  document.getElementById('wCals').value = cals;
+  showToast('Estimated ~'+cals+' cal (MET '+met+') — feel free to adjust');
 }
 
 function getTodayWorkouts(){
