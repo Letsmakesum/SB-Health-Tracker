@@ -182,6 +182,11 @@
     padding:7px 8px;color:var(--text);font-size:16px;
   }
   .ing-remove{background:none;border:none;color:var(--coral);font-size:1rem;cursor:pointer;flex:none;}
+  .ing-estimate{
+    background:none;border:1px solid var(--teal);color:var(--teal);
+    border-radius:8px;font-size:.8rem;font-weight:700;cursor:pointer;flex:none;
+    width:30px;height:30px;line-height:1;
+  }
   .ing-row2{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:4px;}
   .ing-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
   .ingredient-row .ing-row2 select{
@@ -765,6 +770,113 @@ const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const PLAN_SLOTS = ['Breakfast','Lunch','Dinner'];
 const INGREDIENT_UNITS = ['g','oz','lb','cup','tbsp','tsp','ml','piece','slice','scoop'];
 
+/* ---------- Ingredient macro estimator ----------
+   Reference values are standard per-100g figures (USDA-style) for generic/typical
+   preparations. Unit weights (cup/tbsp/piece/etc.) are typical values for that specific
+   food. Universal weight units (g/oz/lb) apply to any food; ml defaults to ~1g/ml
+   unless a food overrides it. This is a best-available offline estimate, not a
+   lab measurement — branded/packaged items will vary. */
+const UNIVERSAL_UNIT_GRAMS = {g:1, oz:28.3495, lb:453.592, ml:1};
+
+const NUTRITION_DB = [
+  {aliases:['chicken breast','grilled chicken breast','grilled chicken','boneless chicken breast','chicken breast grilled'], per100g:{cal:165,p:31,c:0,f:3.6}, units:{piece:174}},
+  {aliases:['chicken thigh'], per100g:{cal:209,p:26,c:0,f:10.9}, units:{piece:110}},
+  {aliases:['rotisserie chicken','chipotle chicken','rotisserie or chipotle chicken','shredded chicken','cooked chicken','chicken'], per100g:{cal:190,p:29,c:0,f:7.4}, units:{}},
+  {aliases:['chicken or beef','ground beef','beef','lean ground beef'], per100g:{cal:250,p:26,c:0,f:15}, units:{}},
+  {aliases:['baked salmon','salmon'], per100g:{cal:208,p:20,c:0,f:13}, units:{}},
+  {aliases:['egg','eggs'], per100g:{cal:143,p:13,c:1.1,f:9.5}, units:{piece:50}},
+  {aliases:['shrimp'], per100g:{cal:99,p:24,c:0.2,f:0.3}, units:{}},
+  {aliases:['turkey breast','ground turkey','turkey'], per100g:{cal:135,p:29,c:0,f:1}, units:{}},
+  {aliases:['tofu'], per100g:{cal:76,p:8,c:1.9,f:4.8}, units:{cup:252}},
+  {aliases:['rice','brown rice','white rice','jasmine rice','cooked rice'], per100g:{cal:130,p:2.7,c:28,f:0.3}, units:{cup:158}},
+  {aliases:['quinoa','cooked quinoa'], per100g:{cal:120,p:4.4,c:21,f:1.9}, units:{cup:185}},
+  {aliases:['rolled oats','oats','oatmeal'], per100g:{cal:389,p:16.9,c:66,f:6.9}, units:{cup:81}},
+  {aliases:['pasta','cooked pasta'], per100g:{cal:131,p:5,c:25,f:1.1}, units:{cup:140}},
+  {aliases:['whole grain toast','whole wheat bread','bread','toast'], per100g:{cal:265,p:9,c:49,f:3.2}, units:{slice:28}},
+  {aliases:['whole wheat tortilla','flour tortilla','tortilla'], per100g:{cal:290,p:8,c:49,f:6.5}, units:{piece:45}},
+  {aliases:['baked potato','potato'], per100g:{cal:93,p:2.5,c:21,f:0.1}, units:{piece:173,cup:150}},
+  {aliases:['sweet potato'], per100g:{cal:90,p:2,c:21,f:0.1}, units:{piece:130,cup:200}},
+  {aliases:['olive oil'], per100g:{cal:884,p:0,c:0,f:100}, units:{tbsp:14,tsp:4.7}},
+  {aliases:['butter'], per100g:{cal:717,p:0.9,c:0.1,f:81}, units:{tbsp:14,tsp:4.7}},
+  {aliases:['avocado'], per100g:{cal:160,p:2,c:8.5,f:14.7}, units:{piece:150,cup:150}},
+  {aliases:['peanut butter','almond butter'], per100g:{cal:588,p:25,c:20,f:50}, units:{tbsp:16}},
+  {aliases:['almonds'], per100g:{cal:579,p:21,c:22,f:50}, units:{cup:143}},
+  {aliases:['whole milk','2% milk','milk'], per100g:{cal:61,p:3.2,c:4.8,f:3.3}, units:{cup:244}},
+  {aliases:['almond milk'], per100g:{cal:15,p:0.6,c:0.6,f:1.2}, units:{cup:240}},
+  {aliases:['greek yogurt','yogurt'], per100g:{cal:59,p:10,c:3.6,f:0.4}, units:{cup:245}},
+  {aliases:['cheddar cheese','shredded cheese','cheese'], per100g:{cal:403,p:25,c:1.3,f:33}, units:{cup:113}},
+  {aliases:['steamed broccoli','broccoli'], per100g:{cal:35,p:2.4,c:7.2,f:0.4}, units:{cup:91}},
+  {aliases:['spinach','kale','mixed greens','greens (spinach/kale)','greens'], per100g:{cal:23,p:2.9,c:3.6,f:0.4}, units:{cup:30}},
+  {aliases:['mixed vegetables','vegetables','veggies'], per100g:{cal:65,p:2.8,c:13,f:0.4}, units:{cup:182}},
+  {aliases:['lettuce / greens','lettuce'], per100g:{cal:15,p:1.4,c:2.9,f:0.2}, units:{cup:36}},
+  {aliases:['tomato'], per100g:{cal:18,p:0.9,c:3.9,f:0.2}, units:{piece:123,cup:180}},
+  {aliases:['banana'], per100g:{cal:89,p:1.1,c:23,f:0.3}, units:{piece:118}},
+  {aliases:['apple'], per100g:{cal:52,p:0.3,c:14,f:0.2}, units:{piece:182}},
+  {aliases:['berries','blueberries','strawberries','mixed berries'], per100g:{cal:50,p:0.7,c:12,f:0.3}, units:{cup:148}},
+  {aliases:['honey'], per100g:{cal:304,p:0.3,c:82,f:0}, units:{tbsp:21,tsp:7}},
+  {aliases:['hummus'], per100g:{cal:166,p:7.9,c:14.3,f:9.6}, units:{tbsp:15,cup:246}},
+  {aliases:['salsa'], per100g:{cal:36,p:1.6,c:7.5,f:0.2}, units:{tbsp:16,cup:230}},
+  {aliases:['whey protein','protein powder'], per100g:{cal:400,p:80,c:8,f:6.7}, units:{scoop:30}},
+  {aliases:['chili flakes','red pepper flakes'], per100g:{cal:318,p:12,c:57,f:17}, units:{tsp:1.8,tbsp:5.3}},
+  {aliases:['lemon'], per100g:{cal:29,p:1.1,c:9.3,f:0.3}, units:{piece:58}},
+  {aliases:['light ranch or yogurt dressing','ranch dressing','yogurt dressing','light dressing','dressing'], per100g:{cal:263,p:1.3,c:5.5,f:26.6}, units:{tbsp:15}}
+];
+
+function findNutritionMatch(name){
+  const n = (name||'').toLowerCase().trim();
+  if(!n) return null;
+  for(const item of NUTRITION_DB){
+    if(item.aliases.includes(n)) return item;
+  }
+  let best = null, bestLen = 0;
+  NUTRITION_DB.forEach(item=>{
+    item.aliases.forEach(a=>{
+      if((n.includes(a) || a.includes(n)) && a.length > bestLen){
+        bestLen = a.length; best = item;
+      }
+    });
+  });
+  return best;
+}
+
+function gramsFor(item, unit, amount){
+  amount = Number(amount)||0;
+  if(amount<=0 || !unit) return null;
+  if(item.units && item.units[unit]!==undefined) return amount * item.units[unit];
+  if(UNIVERSAL_UNIT_GRAMS[unit]!==undefined) return amount * UNIVERSAL_UNIT_GRAMS[unit];
+  return null;
+}
+
+function estimateIngredientMacros(btn){
+  const row = btn.closest('.ingredient-row');
+  const name = row.querySelector('.ing-name').value.trim();
+  const amount = row.querySelector('.ing-amount').value;
+  const unit = row.querySelector('.ing-unit').value;
+
+  if(!name){ showToast('Enter an ingredient name first'); return; }
+  if(!amount || Number(amount)<=0){ showToast('Enter an amount first'); return; }
+  if(!unit){ showToast('Pick a unit first'); return; }
+
+  const match = findNutritionMatch(name);
+  if(!match){
+    showToast('No match for "'+name+'" — try a simpler name or enter macros manually');
+    return;
+  }
+  const grams = gramsFor(match, unit, amount);
+  if(grams===null){
+    showToast('No '+unit+' conversion for that ingredient — try g, oz, or lb');
+    return;
+  }
+  const factor = grams/100;
+  row.querySelector('.ing-cal').value = Math.round(match.per100g.cal * factor);
+  row.querySelector('.ing-p').value = Math.round(match.per100g.p * factor * 10)/10;
+  row.querySelector('.ing-c').value = Math.round(match.per100g.c * factor * 10)/10;
+  row.querySelector('.ing-f').value = Math.round(match.per100g.f * factor * 10)/10;
+
+  recalcMealTotals();
+  showToast('Estimated from reference data for "'+name+'"');
+}
+
 function todayStr(){
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1004,6 +1116,7 @@ function addIngredientRow(prefill){
   row.innerHTML =
     '<div class="ing-row1">'+
       '<input type="text" class="ing-name" placeholder="Ingredient (e.g. Chicken breast)">'+
+      '<button type="button" class="ing-estimate" onclick="estimateIngredientMacros(this)" title="Estimate macros">≈</button>'+
       '<button type="button" class="ing-remove" onclick="removeIngredientRow(this)">✕</button>'+
     '</div>'+
     '<div class="ing-row2">'+
