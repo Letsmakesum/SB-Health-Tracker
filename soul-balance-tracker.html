@@ -4,7 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Soul Balance — Meal & Workout Tracker</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0f1730">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Soul Balance">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <style>
   :root{
     --teal:#0fb9b1;
@@ -113,6 +120,7 @@
   .bar-fill{height:100%;border-radius:8px;transition:width .4s ease;}
   .fill-protein{background:var(--coral);}
   .fill-carbs{background:var(--yellow);}
+  .fill-fiber{background:var(--good);}
   .fill-fat{background:var(--purple);}
 
   .quickgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:8px;}
@@ -188,7 +196,7 @@
     width:30px;height:30px;line-height:1;
   }
   .ing-row2{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:4px;}
-  .ing-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
+  .ing-row3{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;}
   .ingredient-row .ing-row2 select{
     background:var(--card) !important;border:1px solid #2c3968;border-radius:6px !important;
     padding:5px 4px !important;color:var(--text);font-size:.72rem;width:100%;text-align:center;
@@ -408,6 +416,16 @@
 
   <!-- TODAY -->
   <section id="view-today" class="view active">
+    <div class="card" id="corruptBanner" style="display:none;border:1px solid var(--red, #ff6b6b);">
+      <b style="font-size:.9rem;">⚠️ Saved data couldn't be read</b>
+      <p style="font-size:.8rem;color:var(--sub);margin:6px 0 10px;">Your new entries are NOT being saved right now, and your old data was kept safe. Use Settings → Import to restore a backup, or tap Start fresh to begin again.</p>
+      <button type="button" class="suggest-btn" style="margin-top:0;" onclick="startFresh()">Start fresh</button>
+    </div>
+    <div class="card" id="backupBanner" style="display:none;border:1px dashed var(--yellow);">
+      <b style="font-size:.9rem;">💾 Back up your data</b>
+      <p style="font-size:.8rem;color:var(--sub);margin:6px 0 10px;">Browsers can clear app data without warning. Save a backup file every week or so — it only takes a tap.</p>
+      <button type="button" class="suggest-btn" style="margin-top:0;" onclick="exportData()">📤 Export backup now</button>
+    </div>
     <div class="card">
       <div class="ring-wrap">
         <div class="ring">
@@ -446,6 +464,10 @@
           <div class="top"><span>Fat</span><span id="fatTxt">0 / 0g</span></div>
           <div class="bar-track"><div class="bar-fill fill-fat" id="fatBar" style="width:0%"></div></div>
         </div>
+        <div class="macro-row">
+          <div class="top"><span>Fiber</span><span id="fiberTxt">0 / 0g</span></div>
+          <div class="bar-track"><div class="bar-fill fill-fiber" id="fiberBar" style="width:0%"></div></div>
+        </div>
       </div>
     </div>
 
@@ -469,6 +491,7 @@
         <input id="fProtein" type="number" min="0" placeholder="Protein (g)">
         <input id="fCarbs" type="number" min="0" placeholder="Carbs (g)">
         <input id="fFat" type="number" min="0" placeholder="Fat (g)">
+        <input id="fFiber" type="number" min="0" placeholder="Fiber (g)">
         <div style="grid-column:1/-1;font-size:.75rem;color:var(--sub);margin-top:2px;">Ingredients (optional) — add each ingredient's amount and macros, and the totals above fill in automatically</div>
         <div id="ingredientRows" style="grid-column:1/-1;"></div>
         <button type="button" class="add-ingredient-btn" style="grid-column:1/-1;" onclick="addIngredientRow()">+ Add ingredient</button>
@@ -726,6 +749,11 @@
       </div>
     </div>
 
+    <div class="field">
+      <label>Daily fiber goal (g)</label>
+      <input type="number" id="setFiber" min="0" max="100">
+    </div>
+
     <h3 style="margin-top:20px;">🏁 Weight goal</h3>
     <div class="row2b">
       <div class="field"><label>Start weight (lbs)</label><input type="number" id="setStartWeight"></div>
@@ -779,47 +807,50 @@ const INGREDIENT_UNITS = ['g','oz','lb','cup','tbsp','tsp','ml','piece','slice',
 const UNIVERSAL_UNIT_GRAMS = {g:1, oz:28.3495, lb:453.592, ml:1};
 
 const NUTRITION_DB = [
-  {aliases:['chicken breast','grilled chicken breast','grilled chicken','boneless chicken breast','chicken breast grilled'], per100g:{cal:165,p:31,c:0,f:3.6}, units:{piece:174}},
-  {aliases:['chicken thigh'], per100g:{cal:209,p:26,c:0,f:10.9}, units:{piece:110}},
-  {aliases:['rotisserie chicken','chipotle chicken','rotisserie or chipotle chicken','shredded chicken','cooked chicken','chicken'], per100g:{cal:190,p:29,c:0,f:7.4}, units:{}},
-  {aliases:['chicken or beef','ground beef','beef','lean ground beef'], per100g:{cal:250,p:26,c:0,f:15}, units:{}},
-  {aliases:['baked salmon','salmon'], per100g:{cal:208,p:20,c:0,f:13}, units:{}},
-  {aliases:['egg','eggs'], per100g:{cal:143,p:13,c:1.1,f:9.5}, units:{piece:50}},
-  {aliases:['shrimp'], per100g:{cal:99,p:24,c:0.2,f:0.3}, units:{}},
-  {aliases:['turkey breast','ground turkey','turkey'], per100g:{cal:135,p:29,c:0,f:1}, units:{}},
-  {aliases:['tofu'], per100g:{cal:76,p:8,c:1.9,f:4.8}, units:{cup:252}},
-  {aliases:['rice','brown rice','white rice','jasmine rice','cooked rice'], per100g:{cal:130,p:2.7,c:28,f:0.3}, units:{cup:158}},
-  {aliases:['quinoa','cooked quinoa'], per100g:{cal:120,p:4.4,c:21,f:1.9}, units:{cup:185}},
-  {aliases:['rolled oats','oats','oatmeal'], per100g:{cal:389,p:16.9,c:66,f:6.9}, units:{cup:81}},
-  {aliases:['pasta','cooked pasta'], per100g:{cal:131,p:5,c:25,f:1.1}, units:{cup:140}},
-  {aliases:['whole grain toast','whole wheat bread','bread','toast'], per100g:{cal:265,p:9,c:49,f:3.2}, units:{slice:28}},
-  {aliases:['whole wheat tortilla','flour tortilla','tortilla'], per100g:{cal:290,p:8,c:49,f:6.5}, units:{piece:45}},
-  {aliases:['baked potato','potato'], per100g:{cal:93,p:2.5,c:21,f:0.1}, units:{piece:173,cup:150}},
-  {aliases:['sweet potato'], per100g:{cal:90,p:2,c:21,f:0.1}, units:{piece:130,cup:200}},
-  {aliases:['olive oil'], per100g:{cal:884,p:0,c:0,f:100}, units:{tbsp:14,tsp:4.7}},
-  {aliases:['butter'], per100g:{cal:717,p:0.9,c:0.1,f:81}, units:{tbsp:14,tsp:4.7}},
-  {aliases:['avocado'], per100g:{cal:160,p:2,c:8.5,f:14.7}, units:{piece:150,cup:150}},
-  {aliases:['peanut butter','almond butter'], per100g:{cal:588,p:25,c:20,f:50}, units:{tbsp:16}},
-  {aliases:['almonds'], per100g:{cal:579,p:21,c:22,f:50}, units:{cup:143}},
-  {aliases:['whole milk','2% milk','milk'], per100g:{cal:61,p:3.2,c:4.8,f:3.3}, units:{cup:244}},
-  {aliases:['almond milk'], per100g:{cal:15,p:0.6,c:0.6,f:1.2}, units:{cup:240}},
-  {aliases:['greek yogurt','yogurt'], per100g:{cal:59,p:10,c:3.6,f:0.4}, units:{cup:245}},
-  {aliases:['cheddar cheese','shredded cheese','cheese'], per100g:{cal:403,p:25,c:1.3,f:33}, units:{cup:113}},
-  {aliases:['steamed broccoli','broccoli'], per100g:{cal:35,p:2.4,c:7.2,f:0.4}, units:{cup:91}},
-  {aliases:['spinach','kale','mixed greens','greens (spinach/kale)','greens'], per100g:{cal:23,p:2.9,c:3.6,f:0.4}, units:{cup:30}},
-  {aliases:['mixed vegetables','vegetables','veggies'], per100g:{cal:65,p:2.8,c:13,f:0.4}, units:{cup:182}},
-  {aliases:['lettuce / greens','lettuce'], per100g:{cal:15,p:1.4,c:2.9,f:0.2}, units:{cup:36}},
-  {aliases:['tomato'], per100g:{cal:18,p:0.9,c:3.9,f:0.2}, units:{piece:123,cup:180}},
-  {aliases:['banana'], per100g:{cal:89,p:1.1,c:23,f:0.3}, units:{piece:118}},
-  {aliases:['apple'], per100g:{cal:52,p:0.3,c:14,f:0.2}, units:{piece:182}},
-  {aliases:['berries','blueberries','strawberries','mixed berries'], per100g:{cal:50,p:0.7,c:12,f:0.3}, units:{cup:148}},
-  {aliases:['honey'], per100g:{cal:304,p:0.3,c:82,f:0}, units:{tbsp:21,tsp:7}},
-  {aliases:['hummus'], per100g:{cal:166,p:7.9,c:14.3,f:9.6}, units:{tbsp:15,cup:246}},
-  {aliases:['salsa'], per100g:{cal:36,p:1.6,c:7.5,f:0.2}, units:{tbsp:16,cup:230}},
-  {aliases:['whey protein','protein powder'], per100g:{cal:400,p:80,c:8,f:6.7}, units:{scoop:30}},
-  {aliases:['chili flakes','red pepper flakes'], per100g:{cal:318,p:12,c:57,f:17}, units:{tsp:1.8,tbsp:5.3}},
-  {aliases:['lemon'], per100g:{cal:29,p:1.1,c:9.3,f:0.3}, units:{piece:58}},
-  {aliases:['light ranch or yogurt dressing','ranch dressing','yogurt dressing','light dressing','dressing'], per100g:{cal:263,p:1.3,c:5.5,f:26.6}, units:{tbsp:15}}
+  {aliases:['chicken breast','grilled chicken breast','grilled chicken','boneless chicken breast','chicken breast grilled'], per100g:{cal:165,p:31,c:0,f:3.6, fi:0}, units:{piece:174}},
+  {aliases:['chicken thigh'], per100g:{cal:209,p:26,c:0,f:10.9, fi:0}, units:{piece:110}},
+  {aliases:['rotisserie chicken','chipotle chicken','rotisserie or chipotle chicken','shredded chicken','cooked chicken','chicken'], per100g:{cal:190,p:29,c:0,f:7.4, fi:0}, units:{}},
+  {aliases:['chicken or beef','ground beef','beef','lean ground beef'], per100g:{cal:250,p:26,c:0,f:15, fi:0}, units:{}},
+  {aliases:['baked salmon','salmon'], per100g:{cal:208,p:20,c:0,f:13, fi:0}, units:{}},
+  {aliases:['egg','eggs'], per100g:{cal:143,p:13,c:1.1,f:9.5, fi:0}, units:{piece:50}},
+  {aliases:['shrimp'], per100g:{cal:99,p:24,c:0.2,f:0.3, fi:0}, units:{}},
+  {aliases:['turkey breast','ground turkey','turkey'], per100g:{cal:135,p:29,c:0,f:1, fi:0}, units:{}},
+  {aliases:['tofu'], per100g:{cal:76,p:8,c:1.9,f:4.8, fi:0.3}, units:{cup:252}},
+  {aliases:['brown rice'], per100g:{cal:123,p:2.7,c:25.6,f:1,fi:1.6}, units:{cup:195}},
+  {aliases:['rice','white rice','jasmine rice','cooked rice'], per100g:{cal:130,p:2.7,c:28,f:0.3, fi:0.4}, units:{cup:158}},
+  {aliases:['quinoa','cooked quinoa'], per100g:{cal:120,p:4.4,c:21,f:1.9, fi:2.8}, units:{cup:185}},
+  {aliases:['rolled oats','oats','oatmeal'], per100g:{cal:389,p:16.9,c:66,f:6.9, fi:10.6}, units:{cup:81}},
+  {aliases:['pasta','cooked pasta'], per100g:{cal:158,p:5.8,c:30.9,f:0.9,fi:1.8}, units:{cup:140}},
+  {aliases:['whole grain toast','whole wheat bread','bread','toast'], per100g:{cal:254,p:12.3,c:43.1,f:3.5,fi:6}, units:{slice:28}},
+  {aliases:['whole wheat tortilla','flour tortilla','tortilla'], per100g:{cal:290,p:8,c:49,f:6.5, fi:6}, units:{piece:45}},
+  {aliases:['baked potato','potato'], per100g:{cal:93,p:2.5,c:21,f:0.1, fi:2.2}, units:{piece:173,cup:150}},
+  {aliases:['sweet potato'], per100g:{cal:90,p:2,c:21,f:0.1, fi:3.3}, units:{piece:130,cup:200}},
+  {aliases:['olive oil'], per100g:{cal:884,p:0,c:0,f:100, fi:0}, units:{tbsp:14,tsp:4.7}},
+  {aliases:['butter'], per100g:{cal:717,p:0.9,c:0.1,f:81, fi:0}, units:{tbsp:14,tsp:4.7}},
+  {aliases:['avocado'], per100g:{cal:160,p:2,c:8.5,f:14.7, fi:6.7}, units:{piece:150,cup:150}},
+  {aliases:['peanut butter'], per100g:{cal:588,p:21.9,c:24,f:49.5,fi:5.7}, units:{tbsp:16}},
+  {aliases:['almond butter'], per100g:{cal:614,p:21,c:18.8,f:55.5,fi:10.3}, units:{tbsp:16}},
+  {aliases:['almonds'], per100g:{cal:579,p:21,c:22,f:50, fi:12.5}, units:{cup:143}},
+  {aliases:['whole milk','2% milk','milk'], per100g:{cal:61,p:3.2,c:4.8,f:3.3, fi:0}, units:{cup:244}},
+  {aliases:['almond milk'], per100g:{cal:15,p:0.4,c:1.3,f:1,fi:0.2}, units:{cup:240}},
+  {aliases:['greek yogurt','yogurt'], per100g:{cal:59,p:10,c:3.6,f:0.4, fi:0}, units:{cup:245}},
+  {aliases:['cheddar cheese','shredded cheese','cheese'], per100g:{cal:403,p:25,c:1.3,f:33, fi:0}, units:{cup:113}},
+  {aliases:['steamed broccoli','broccoli'], per100g:{cal:35,p:2.4,c:7.2,f:0.4, fi:3.3}, units:{cup:91}},
+  {aliases:['spinach','kale','mixed greens','greens (spinach/kale)','greens'], per100g:{cal:23,p:2.9,c:3.6,f:0.4, fi:2.2}, units:{cup:30}},
+  {aliases:['mixed vegetables','vegetables','veggies'], per100g:{cal:65,p:2.9,c:13.1,f:0.1,fi:4.4}, units:{cup:182}},
+  {aliases:['lettuce / greens','lettuce'], per100g:{cal:17,p:1.2,c:3.3,f:0.3,fi:2.1}, units:{cup:36}},
+  {aliases:['tomato'], per100g:{cal:18,p:0.9,c:3.9,f:0.2, fi:1.2}, units:{piece:123,cup:180}},
+  {aliases:['banana'], per100g:{cal:89,p:1.1,c:23,f:0.3, fi:2.6}, units:{piece:118}},
+  {aliases:['apple'], per100g:{cal:52,p:0.3,c:14,f:0.2, fi:2.4}, units:{piece:182}},
+  {aliases:['blueberries'], per100g:{cal:57,p:0.7,c:14.5,f:0.3,fi:2.4}, units:{cup:148}},
+  {aliases:['berries','strawberries','mixed berries'], per100g:{cal:50,p:0.7,c:12,f:0.3, fi:2.5}, units:{cup:148}},
+  {aliases:['honey'], per100g:{cal:304,p:0.3,c:82,f:0, fi:0.2}, units:{tbsp:21,tsp:7}},
+  {aliases:['hummus'], per100g:{cal:166,p:7.9,c:14.3,f:9.6, fi:6}, units:{tbsp:15,cup:246}},
+  {aliases:['salsa'], per100g:{cal:36,p:1.6,c:7.5,f:0.2, fi:1.5}, units:{tbsp:16,cup:230}},
+  {aliases:['whey protein','protein powder'], per100g:{cal:400,p:80,c:8,f:6.7, fi:0}, units:{scoop:30}},
+  {aliases:['chili flakes','red pepper flakes'], per100g:{cal:318,p:12,c:57,f:17, fi:27}, units:{tsp:1.8,tbsp:5.3}},
+  {aliases:['lemon'], per100g:{cal:29,p:1.1,c:9.3,f:0.3, fi:2.8}, units:{piece:58}},
+  {aliases:['light ranch or yogurt dressing','ranch dressing','yogurt dressing','light dressing','dressing'], per100g:{cal:263,p:1.3,c:5.5,f:26.6, fi:0}, units:{tbsp:15}}
 ];
 
 function findNutritionMatch(name){
@@ -872,10 +903,14 @@ function estimateIngredientMacros(btn){
   row.querySelector('.ing-p').value = Math.round(match.per100g.p * factor * 10)/10;
   row.querySelector('.ing-c').value = Math.round(match.per100g.c * factor * 10)/10;
   row.querySelector('.ing-f').value = Math.round(match.per100g.f * factor * 10)/10;
+  row.querySelector('.ing-fi').value = Math.round((match.per100g.fi||0) * factor * 10)/10;
 
   recalcMealTotals();
   showToast('Estimated from reference data for "'+name+'"');
 }
+
+let _uidN=0;
+function uid(prefix){ return prefix+Date.now().toString(36)+(++_uidN).toString(36)+Math.random().toString(36).slice(2,5); }
 
 function todayStr(){
   const d = new Date();
@@ -908,6 +943,7 @@ function defaultData(){
   return {
     goal: 2000,
     macroSplit: {p:30,c:40,f:30}, // percent of calories
+    fiberGoal: 30, // grams per day
     goToMeals: [
       {id:'g1', name:'Grilled Chicken Bowl', cals:665, p:59, c:55, f:22, meal:'Lunch', ingredients:[
         {name:'Grilled chicken breast', amount:6, unit:'oz', cal:280, p:52, c:0, f:6},
@@ -976,6 +1012,33 @@ function defaultData(){
 }
 
 function loadData(){
+  const d = loadDataRaw();
+  migrateFiber(d);
+  return d;
+}
+
+/* Older meals/log entries have no fiber value: estimate it from their ingredients (offline reference data). Only fills in missing values. */
+function ingredientFiber(i){
+  if(i.fi!==undefined && i.fi!==null && i.fi!=='') return Number(i.fi)||0;
+  const m = findNutritionMatch(i.name);
+  if(!m) return 0;
+  const g = gramsFor(m, i.unit, i.amount);
+  return g===null ? 0 : (m.per100g.fi||0) * g / 100;
+}
+function fillFiberFor(item){
+  if(!item || (item.fi!==undefined && item.fi!==null)) return;
+  const ing = Array.isArray(item.ingredients) ? item.ingredients : [];
+  ing.forEach(i=>{ if(i && (i.fi===undefined || i.fi===null || i.fi==='')) i.fi = Math.round(ingredientFiber(i)*10)/10; });
+  item.fi = Math.round(ing.reduce((s,i)=> s+(Number(i && i.fi)||0), 0)*10)/10;
+}
+function migrateFiber(d){
+  try{
+    (d.goToMeals||[]).forEach(fillFiberFor);
+    Object.keys(d.logs||{}).forEach(k=> (d.logs[k]||[]).forEach(fillFiberFor));
+  }catch(e){}
+}
+
+function loadDataRaw(){
   const dflt = defaultData();
   try{
     const raw = localStorage.getItem(STORE_KEY);
@@ -983,6 +1046,7 @@ function loadData(){
     const parsed = JSON.parse(raw);
     return Object.assign(dflt, parsed, {
       macroSplit: Object.assign({p:30,c:40,f:30}, parsed.macroSplit||{}),
+      fiberGoal: (parsed.fiberGoal!==undefined && parsed.fiberGoal!==null) ? Number(parsed.fiberGoal)||0 : 30,
       goToMeals: parsed.goToMeals || dflt.goToMeals,
       logs: parsed.logs || {},
       activityLevel: parsed.activityLevel || 'moderate',
@@ -996,14 +1060,65 @@ function loadData(){
       groceryChecked: parsed.groceryChecked || {}
     });
   }catch(e){
+    // Don't silently overwrite unreadable data: keep a copy and stop auto-saving over it
+    try{ localStorage.setItem(STORE_KEY+'_corrupt', localStorage.getItem(STORE_KEY)||''); }catch(e2){}
+    window._loadFailed = true;
     return dflt;
   }
 }
 
-function saveData(){
-  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+/* ---------- Durable storage: localStorage + IndexedDB mirror ----------
+   Browsers (especially iOS Safari) can evict localStorage after a few days of
+   inactivity. A second copy in IndexedDB plus a persistent-storage request makes
+   data loss much less likely; regular file backups are still the real safety net. */
+function idbOpen(cb){
+  try{
+    const req = indexedDB.open('soulBalance', 1);
+    req.onupgradeneeded = ()=> req.result.createObjectStore('kv');
+    req.onsuccess = ()=> cb(req.result);
+    req.onerror = ()=> cb(null);
+  }catch(e){ cb(null); }
+}
+function idbSet(json){
+  idbOpen(db=>{ if(!db) return; try{ db.transaction('kv','readwrite').objectStore('kv').put(json,'data'); }catch(e){} });
+}
+function idbGet(cb){
+  idbOpen(db=>{
+    if(!db){ cb(null); return; }
+    try{
+      const g = db.transaction('kv').objectStore('kv').get('data');
+      g.onsuccess = ()=> cb(g.result||null);
+      g.onerror = ()=> cb(null);
+    }catch(e){ cb(null); }
+  });
 }
 
+function saveData(){
+  if(window._loadFailed){ showCorruptBanner(); return; }
+  const json = JSON.stringify(data);
+  try{ localStorage.setItem(STORE_KEY, json); }catch(e){
+    if(!window._warnedQuota){ window._warnedQuota = true; setTimeout(()=>showToast('Phone storage is full or blocked - export a backup now'),0); }
+  }
+  idbSet(json);
+}
+function showCorruptBanner(){
+  const el = document.getElementById('corruptBanner');
+  if(el) el.style.display = 'block';
+}
+function startFresh(){
+  if(!window.confirm('Start with empty data? A copy of the unreadable data stays saved on this device.')) return;
+  window._loadFailed = false;
+  data = defaultData(); migrateFiber(data);
+  const el = document.getElementById('corruptBanner'); if(el) el.style.display='none';
+  saveData(); renderToday(); renderProgress();
+}
+// A valid backup/save must look like tracker data
+function validBackup(o){
+  return !!o && typeof o==='object' && !Array.isArray(o) &&
+    (typeof o.logs==='object' || typeof o.goToMeals==='object' || typeof o.workoutLogs==='object' || typeof o.weightLogs==='object');
+}
+
+const _hadStoredData = (function(){ try{ return !!localStorage.getItem(STORE_KEY); }catch(e){ return false; } })();
 let data = loadData();
 let currentDate = todayStr();
 let progressPeriod = 7;
@@ -1012,7 +1127,7 @@ let calendarViewDate = new Date();
 // Seed a starting weight log point so the trend chart has an origin
 if(Object.keys(data.weightLogs).length===0){
   data.weightLogs[data.weightGoal.startDate] = data.weightGoal.startWeight;
-  saveData();
+  if(_hadStoredData) saveData(); // otherwise wait: the IndexedDB restore check below may recover real data first
 }
 
 function dateLabel(dstr){
@@ -1041,6 +1156,7 @@ function switchTab(view){
 
 /* ---------- Rendering: Today (food) ---------- */
 function getTodayLog(){
+  if(todayStr()!==currentDate) refreshDay();
   if(!data.logs[currentDate]) data.logs[currentDate] = [];
   return data.logs[currentDate];
 }
@@ -1062,8 +1178,10 @@ function renderToday(){
     acc.p += Number(e.p)||0;
     acc.c += Number(e.c)||0;
     acc.f += Number(e.f)||0;
+    acc.fi += Number(e.fi)||0;
     return acc;
-  }, {cals:0,p:0,c:0,f:0});
+  }, {cals:0,p:0,c:0,f:0,fi:0});
+  totals.fi = Math.round(totals.fi*10)/10;
 
   const goal = data.goal;
   const pct = Math.max(0, Math.min(1, totals.cals/goal));
@@ -1085,9 +1203,14 @@ function renderToday(){
   document.getElementById('carbsBar').style.width = Math.min(100, mg.c? totals.c/mg.c*100:0)+'%';
   document.getElementById('fatBar').style.width = Math.min(100, mg.f? totals.f/mg.f*100:0)+'%';
 
+  const fg = Number(data.fiberGoal)||0;
+  document.getElementById('fiberTxt').textContent = totals.fi+' / '+fg+'g';
+  document.getElementById('fiberBar').style.width = Math.min(100, fg? totals.fi/fg*100:0)+'%';
+
   renderQuickGrid();
   renderLog(log);
   renderWorkoutSection();
+  updateBackupBanner();
 }
 
 function renderQuickGrid(){
@@ -1128,6 +1251,7 @@ function addIngredientRow(prefill){
       '<input type="number" min="0" step="0.1" class="ing-p" placeholder="Protein g">'+
       '<input type="number" min="0" step="0.1" class="ing-c" placeholder="Carbs g">'+
       '<input type="number" min="0" step="0.1" class="ing-f" placeholder="Fat g">'+
+      '<input type="number" min="0" step="0.1" class="ing-fi" placeholder="Fiber g">'+
     '</div>';
   container.appendChild(row);
   if(prefill){
@@ -1138,6 +1262,7 @@ function addIngredientRow(prefill){
     row.querySelector('.ing-p').value = prefill.p||'';
     row.querySelector('.ing-c').value = prefill.c||'';
     row.querySelector('.ing-f').value = prefill.f||'';
+    row.querySelector('.ing-fi').value = prefill.fi||'';
   }
   return row;
 }
@@ -1155,20 +1280,22 @@ function resetIngredientRows(){
 
 function recalcMealTotals(){
   const rows = document.querySelectorAll('#ingredientRows .ingredient-row');
-  let cal=0, p=0, c=0, f=0, any=false;
+  let cal=0, p=0, c=0, f=0, fi=0, any=false;
   rows.forEach(r=>{
     const rc = Number(r.querySelector('.ing-cal').value)||0;
     const rp = Number(r.querySelector('.ing-p').value)||0;
     const rcarb = Number(r.querySelector('.ing-c').value)||0;
     const rf = Number(r.querySelector('.ing-f').value)||0;
-    if(rc||rp||rcarb||rf) any = true;
-    cal += rc; p += rp; c += rcarb; f += rf;
+    const rfi = Number(r.querySelector('.ing-fi').value)||0;
+    if(rc||rp||rcarb||rf||rfi) any = true;
+    cal += rc; p += rp; c += rcarb; f += rf; fi += rfi;
   });
   if(any){
     document.getElementById('fCals').value = Math.round(cal);
     document.getElementById('fProtein').value = Math.round(p);
     document.getElementById('fCarbs').value = Math.round(c);
     document.getElementById('fFat').value = Math.round(f);
+    document.getElementById('fFiber').value = Math.round(fi*10)/10;
   }
 }
 
@@ -1183,7 +1310,8 @@ function collectIngredients(){
     const p = Number(r.querySelector('.ing-p').value)||0;
     const c = Number(r.querySelector('.ing-c').value)||0;
     const f = Number(r.querySelector('.ing-f').value)||0;
-    if(name) list.push({name, amount: amountRaw!=='' ? Number(amountRaw) : '', unit, cal, p, c, f});
+    const fi = Number(r.querySelector('.ing-fi').value)||0;
+    if(name) list.push({name, amount: amountRaw!=='' ? Number(amountRaw) : '', unit, cal, p, c, f, fi});
   });
   return list;
 }
@@ -1228,6 +1356,7 @@ function openMealDetail(m){
     '<div class="row"><span>Protein</span><b>'+(m.p||0)+'g</b></div>'+
     '<div class="row"><span>Carbs</span><b>'+(m.c||0)+'g</b></div>'+
     '<div class="row"><span>Fat</span><b>'+(m.f||0)+'g</b></div>'+
+    '<div class="row"><span>Fiber</span><b>'+(m.fi||0)+'g</b></div>'+
     '<div class="row"><span>Meal type</span><b>'+m.meal+'</b></div>'+
     '</div>'+ingHtml;
   window._activeMealDetail = m;
@@ -1243,7 +1372,7 @@ function confirmAddMealDetail(){
 
 function quickAdd(m){
   const log = getTodayLog();
-  log.push({id:'e'+Date.now(), name:m.name, meal:m.meal, cals:Number(m.cals)||0, p:Number(m.p)||0, c:Number(m.c)||0, f:Number(m.f)||0, ingredients:m.ingredients||[], time:Date.now()});
+  log.push({id:uid('e'), name:m.name, meal:m.meal, cals:Number(m.cals)||0, p:Number(m.p)||0, c:Number(m.c)||0, f:Number(m.f)||0, fi:Number(m.fi)||0, ingredients:m.ingredients||[], time:Date.now()});
   saveData();
   renderToday();
   showToast(m.name+' added ✓');
@@ -1269,7 +1398,7 @@ function renderLog(log){
       const ingList = formatIngredientsList(e.ingredients);
       const ingLine = ingList.length ? '<br>'+escapeHtml(ingList.join(', ')) : '';
       row.innerHTML = '<div><div class="name">'+escapeHtml(e.name)+'</div>'+
-        '<div class="macros">P '+(e.p||0)+'g · C '+(e.c||0)+'g · F '+(e.f||0)+'g'+ingLine+'</div></div>'+
+        '<div class="macros">P '+(e.p||0)+'g · C '+(e.c||0)+'g · F '+(e.f||0)+'g · Fiber '+(e.fi||0)+'g'+ingLine+'</div></div>'+
         '<div class="right"><span class="cals">'+e.cals+' cal</span>'+
         '<button class="del-btn" onclick="deleteEntry(\''+e.id+'\')">✕</button></div>';
       container.appendChild(row);
@@ -1292,14 +1421,15 @@ function addEntry(ev){
   const p = Number(document.getElementById('fProtein').value)||0;
   const c = Number(document.getElementById('fCarbs').value)||0;
   const f = Number(document.getElementById('fFat').value)||0;
+  const fi = Number(document.getElementById('fFiber').value)||0;
   const ingredients = collectIngredients();
   if(!name || cals<=0) return false;
 
   const log = getTodayLog();
-  log.push({id:'e'+Date.now(), name, meal, cals, p, c, f, ingredients, time:Date.now()});
+  log.push({id:uid('e'), name, meal, cals, p, c, f, fi, ingredients, time:Date.now()});
 
   if(document.getElementById('fSave').checked){
-    data.goToMeals.push({id:'g'+Date.now(), name, cals, p, c, f, meal, ingredients});
+    data.goToMeals.push({id:uid('g'), name, cals, p, c, f, fi, meal, ingredients});
   }
 
   saveData();
@@ -1448,6 +1578,7 @@ function estimateCaloriesBurned(){
 }
 
 function getTodayWorkouts(){
+  if(todayStr()!==currentDate) refreshDay();
   if(!data.workoutLogs[currentDate]) data.workoutLogs[currentDate] = [];
   return data.workoutLogs[currentDate];
 }
@@ -1474,7 +1605,7 @@ function renderQuickWorkoutGrid(){
 
 function quickAddWorkout(w){
   const log = getTodayWorkouts();
-  const entry = {id:'we'+Date.now(), name:w.name, type:w.type, duration:Number(w.duration)||0, cals:Number(w.cals)||0, time:Date.now()};
+  const entry = {id:uid('we'), name:w.name, type:w.type, duration:Number(w.duration)||0, cals:Number(w.cals)||0, time:Date.now()};
   if(w.type==='Strength'){
     entry.setsList = getSetsList(w);
     entry.note = w.note || '';
@@ -1493,8 +1624,8 @@ function addWorkout(ev){
   const cals = Number(document.getElementById('wCals').value)||0;
   if(!name) return false;
 
-  const entry = {id:'we'+Date.now(), name, type, duration, cals, time:Date.now()};
-  const gotoEntry = {id:'gw'+Date.now(), name, type, duration, cals};
+  const entry = {id:uid('we'), name, type, duration, cals, time:Date.now()};
+  const gotoEntry = {id:uid('gw'), name, type, duration, cals};
   if(type==='Strength'){
     const setsList = collectSets();
     const note = document.getElementById('wNote').value.trim();
@@ -1653,6 +1784,10 @@ function dayTotal(dstr){
   const log = data.logs[dstr] || [];
   return log.reduce((s,e)=> s+(Number(e.cals)||0), 0);
 }
+function dayFiber(dstr){
+  const log = data.logs[dstr] || [];
+  return Math.round(log.reduce((s,e)=> s+(Number(e.fi)||0), 0)*10)/10;
+}
 function workoutDayTotal(dstr){
   const log = data.workoutLogs[dstr] || [];
   return log.reduce((s,w)=> s+(Number(w.cals)||0), 0);
@@ -1683,7 +1818,7 @@ function renderHistory(){
     row.className = 'h-row';
     const d = new Date(dstr+'T00:00:00');
     const label = (dstr===currentDate? 'Today · ' : '') + d.toLocaleDateString(undefined,{month:'short', day:'numeric'});
-    row.innerHTML = '<span>'+label+'</span><span><b>'+total+' cal</b> <span class="pct">('+pct+'%)</span></span>';
+    row.innerHTML = '<span>'+label+'</span><span><b>'+total+' cal</b> <span class="pct">('+pct+'%) · '+dayFiber(dstr)+'g fiber</span></span>';
     list.appendChild(row);
   });
 }
@@ -2014,7 +2149,8 @@ function scaledMeal(mealId, slotName){
     cal: Math.round((Number(i.cal)||0)*factor),
     p: Math.round((Number(i.p)||0)*factor),
     c: Math.round((Number(i.c)||0)*factor),
-    f: Math.round((Number(i.f)||0)*factor)
+    f: Math.round((Number(i.f)||0)*factor),
+    fi: Math.round((Number(i.fi)||0)*factor*10)/10
   })) : [];
   return {
     name: meal.name,
@@ -2022,6 +2158,7 @@ function scaledMeal(mealId, slotName){
     p: Math.round((Number(meal.p)||0)*factor),
     c: Math.round((Number(meal.c)||0)*factor),
     f: Math.round((Number(meal.f)||0)*factor),
+    fi: Math.round((Number(meal.fi)||0)*factor*10)/10,
     ingredients
   };
 }
@@ -2309,6 +2446,7 @@ function openSettings(){
   document.getElementById('setP').value = data.macroSplit.p;
   document.getElementById('setC').value = data.macroSplit.c;
   document.getElementById('setF').value = data.macroSplit.f;
+  document.getElementById('setFiber').value = data.fiberGoal;
   document.getElementById('setStartWeight').value = data.weightGoal.startWeight;
   document.getElementById('setGoalWeight').value = data.weightGoal.goalWeight;
   document.getElementById('setTargetDate').value = data.weightGoal.targetDate;
@@ -2390,6 +2528,7 @@ function saveSettings(){
   }
   data.goal = Math.max(800, goal);
   data.macroSplit = {p,c,f};
+  data.fiberGoal = Math.max(0, Math.min(100, Number(document.getElementById('setFiber').value)||0));
 
   data.weightGoal.startWeight = Number(document.getElementById('setStartWeight').value) || data.weightGoal.startWeight;
   data.weightGoal.goalWeight = Number(document.getElementById('setGoalWeight').value) || data.weightGoal.goalWeight;
@@ -2404,7 +2543,17 @@ function saveSettings(){
 }
 
 /* ---------- Backup & restore ---------- */
+function updateBackupBanner(){
+  const el = document.getElementById('backupBanner');
+  if(!el) return;
+  const last = data.lastBackup || 0;
+  el.style.display = (Date.now() - last > 7*86400000) ? 'block' : 'none';
+}
+
 function exportData(){
+  data.lastBackup = Date.now();
+  saveData();
+  updateBackupBanner();
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2424,10 +2573,13 @@ function importDataFile(ev){
   reader.onload = function(e){
     try{
       const imported = JSON.parse(e.target.result);
-      if(!imported || typeof imported!=='object') throw new Error('bad format');
+      if(!validBackup(imported)) throw new Error('bad format');
       const ok = window.confirm('This will replace all current data with the backup file. Continue?');
       if(!ok) return;
-      data = Object.assign(defaultData(), imported);
+      window._loadFailed = false;
+      const cb = document.getElementById('corruptBanner'); if(cb) cb.style.display='none';
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(imported)); }catch(e3){}
+      data = loadData();
       saveData();
       closeSettings();
       renderToday();
@@ -2512,6 +2664,47 @@ renderToday();
 renderTip();
 renderFact();
 renderProgress();
+if(window._loadFailed) showCorruptBanner();
+
+// Keep "today" correct when the installed app stays open past midnight
+function refreshDay(){
+  const t = todayStr();
+  if(t !== currentDate){
+    currentDate = t;
+    calendarViewDate = new Date();
+    renderToday(); renderProgress();
+    if(typeof renderWorkoutSection==='function') renderWorkoutSection();
+    if(typeof renderCalendar==='function') renderCalendar();
+  }
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshDay(); });
+window.addEventListener('focus', refreshDay);
+window.addEventListener('pageshow', refreshDay);
+setInterval(refreshDay, 60000);
+
+// Register the service worker so the app installs and works offline
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+
+// Ask the browser not to evict this site's storage
+try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+
+// If the main store was wiped, try to recover from the IndexedDB mirror
+if(!_hadStoredData){
+  idbGet(function(json){
+    if(json){
+      try{
+        localStorage.setItem(STORE_KEY, json);
+        data = loadData();
+        renderToday(); renderProgress();
+        showToast('Recovered your saved data ✓');
+        return;
+      }catch(e){}
+    }
+    saveData();
+  });
+}
 </script>
 </body>
 </html>
