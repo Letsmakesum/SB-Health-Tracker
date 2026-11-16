@@ -70,13 +70,13 @@
   }
   .tab-btn{
     flex:1;
-    padding:10px 4px;
+    padding:10px 2px;
     border-radius:14px;
     border:none;
     background:var(--card);
     color:var(--sub);
     font-weight:600;
-    font-size:.74rem;
+    font-size:.7rem;
     cursor:pointer;
     white-space:nowrap;
   }
@@ -257,7 +257,30 @@
   .history-list .h-row:last-child{border-bottom:none;}
   .h-row .pct{font-size:.72rem;color:var(--sub);}
 
-  /* Tips */
+  /* Ingredient search in the log form */
+  .ing-suggest{background:var(--card2);border:1px solid #3a4778;border-radius:10px;margin:4px 0;overflow:hidden;}
+  .ing-suggest-item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid #2c3a6b;color:var(--text);padding:10px;font-size:.88rem;text-align:left;cursor:pointer;}
+  .ing-suggest-item:last-child{border-bottom:none;}
+  .ing-suggest-item span{color:var(--sub);font-size:.72rem;white-space:nowrap;}
+  .ing-status{font-size:.72rem;color:var(--good);margin:3px 0 5px;line-height:1.35;}
+
+  /* Ingredients / pantry */
+  .lib-item{background:var(--card2);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+  .lib-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .lib-name{font-weight:700;font-size:.9rem;}
+  .lib-meta{font-size:.72rem;color:var(--sub);margin-top:5px;line-height:1.5;}
+  .lib-badge{font-size:.62rem;background:var(--teal);color:#04302a;border-radius:8px;padding:1px 6px;margin-left:6px;font-weight:700;}
+  .lib-del{background:none;border:none;color:var(--coral);font-size:1rem;cursor:pointer;}
+  .lib-edit{background:none;border:none;color:var(--sub);font-size:1rem;cursor:pointer;}
+  .lib-actions{display:flex;gap:2px;align-items:center;}
+  .calc-result{background:var(--card2);border-radius:12px;padding:12px;margin:10px 0;font-size:.85rem;line-height:1.5;}
+  .pantry-chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid #3a4778;border-radius:16px;padding:4px 10px;margin:0 6px 6px 0;font-size:.8rem;}
+  .pantry-chip button{background:none;border:none;color:var(--coral);cursor:pointer;font-size:.9rem;padding:0;}
+  .pantry-summary{font-size:.82rem;margin:4px 0 10px;line-height:1.6;}
+  .grocery-skipped{font-size:.75rem;color:var(--sub);margin-top:14px;line-height:1.5;}
+  .search-input{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:12px;border:1px solid #3a4778;background:var(--card2);color:var(--text);font-size:16px;margin-bottom:10px;}
+
+  /* Tips (legacy styles, still used by shared buttons) */
   .tip-card{
     background:linear-gradient(120deg,var(--purple),var(--teal));
     border-radius:var(--radius);
@@ -411,7 +434,7 @@
     <button class="tab-btn" data-view="history" onclick="switchTab('history')">History</button>
     <button class="tab-btn" data-view="progress" onclick="switchTab('progress')">Progress</button>
     <button class="tab-btn" data-view="plan" onclick="switchTab('plan')">Plan</button>
-    <button class="tab-btn" data-view="tips" onclick="switchTab('tips')">Tips</button>
+    <button class="tab-btn" data-view="ingredients" onclick="switchTab('ingredients')">Ingredients</button>
   </div>
 
   <!-- TODAY -->
@@ -652,8 +675,15 @@
     </div>
 
     <div class="card">
-      <h3>🛒 Grocery list</h3>
-      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Built from your weekly menu, grouped by QFC, Farmers Market, or Costco. Tap an item to check it off; change the store dropdown to re-sort it.</p>
+      <h3>🥫 Pantry check</h3>
+      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Tick what you already have at home for this week's meal prep. Those items come off your grocery list below. (Manage your full pantry on the Ingredients tab.)</p>
+      <div id="pantrySummary" class="pantry-summary"></div>
+      <div id="pantryCheckList"></div>
+    </div>
+
+    <div class="card">
+      <h3>🛒 Left to buy</h3>
+      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Your weekly menu minus what's in your pantry, grouped by QFC, Farmers Market, or Costco. Tap an item to check it off; change the store dropdown to re-sort it.</p>
       <div class="tip-nav" style="margin-bottom:10px;">
         <button onclick="generateGroceryList()">🔄 Generate list</button>
         <button onclick="copyGroceryList()">📋 Copy list</button>
@@ -662,19 +692,74 @@
     </div>
   </section>
 
-  <!-- TIPS -->
-  <section id="view-tips" class="view">
-    <div class="tip-card">
-      <span class="badge">Nutrition & training tip</span>
-      <p id="tipText">Loading tip…</p>
+  <!-- INGREDIENTS -->
+  <section id="view-ingredients" class="view">
+    <div class="card">
+      <h3>🧮 Ingredient calculator</h3>
+      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Type an ingredient and the amount you're using. Calories, macros and fiber fill in automatically from your own saved labels or the library.</p>
+      <form class="entry-form" onsubmit="return false">
+        <input class="full" id="calcName" list="ingredientNames" placeholder="Ingredient (e.g. brown rice)" oninput="calcUpdate()" autocomplete="off">
+        <datalist id="ingredientNames"></datalist>
+        <input id="calcAmount" type="number" min="0" step="any" inputmode="decimal" placeholder="Amount" oninput="calcUpdate()">
+        <select id="calcUnit" onchange="calcUpdate()"></select>
+      </form>
+      <div class="calc-result" id="calcResult">Type an ingredient and the amount you're using.</div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>Log it as</label>
+        <select id="calcMeal">
+          <option>Breakfast</option>
+          <option>Lunch</option>
+          <option>Dinner</option>
+          <option>Snack</option>
+        </select>
+      </div>
+      <div class="tip-nav">
+        <button type="button" onclick="calcLog()">➕ Add to today's log</button>
+        <button type="button" onclick="calcToForm()">🧾 Add to Log food form</button>
+      </div>
     </div>
-    <div class="tip-card fact-card">
-      <span class="badge">Body fun fact</span>
-      <p id="factText">Loading fact…</p>
+
+    <div class="card">
+      <h3>📚 Ingredient library</h3>
+      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Tick the box for anything you keep at home (your pantry). Values are per 100 g unless noted.</p>
+      <input type="search" class="search-input" id="ingSearch" placeholder="Search ingredients…" oninput="renderIngredientLibrary()">
+      <div id="ingRestore"></div>
+      <div id="ingLibrary"></div>
     </div>
-    <div class="tip-nav">
-      <button onclick="nextTip()">🔄 New tip</button>
-      <button onclick="nextFact()">🔄 New fact</button>
+
+    <div class="card">
+      <h3>➕ Add your own ingredient</h3>
+      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Copy the numbers from a nutrition label (per serving). Add the serving weight in grams so you can use any unit later.</p>
+      <form class="entry-form" onsubmit="return addCustomIngredient(event)">
+        <input class="full" id="ciName" placeholder="Name (e.g. Kirkland chicken sausage)" required>
+        <input id="ciAmount" type="number" min="0" step="any" inputmode="decimal" placeholder="Serving size" required>
+        <select id="ciUnit"></select>
+        <input class="full" id="ciGrams" type="number" min="0" step="any" inputmode="decimal" placeholder="Serving weight in grams (optional)">
+        <input id="ciCal" type="number" min="0" step="any" inputmode="decimal" placeholder="Calories" required>
+        <input id="ciFiber" type="number" min="0" step="any" inputmode="decimal" placeholder="Fiber (g)">
+        <input id="ciProtein" type="number" min="0" step="any" inputmode="decimal" placeholder="Protein (g)">
+        <input id="ciCarbs" type="number" min="0" step="any" inputmode="decimal" placeholder="Carbs (g)">
+        <input id="ciFat" type="number" min="0" step="any" inputmode="decimal" placeholder="Fat (g)">
+        <select id="ciStore">
+          <option>QFC</option>
+          <option>Farmers Market</option>
+          <option>Costco</option>
+          <option>Other</option>
+        </select>
+        <button type="submit">Save ingredient</button>
+      </form>
+      <button type="button" class="suggest-btn" style="margin-top:12px;" onclick="importIngredientsFromMeals()">📥 Add ingredients from my saved meals</button>
+      <p style="font-size:.72rem;color:var(--sub);margin:6px 0 0;">New ingredients you type into a meal are saved here automatically. This button adds any from meals you saved earlier. Only ingredients with an amount, unit and all macros filled in are saved.</p>
+    </div>
+
+    <div class="card">
+      <h3>🥫 My pantry</h3>
+      <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">What you already have at home. These come off your grocery list on the Plan tab.</p>
+      <div id="pantryList"></div>
+      <form class="entry-form" onsubmit="return addPantryItem(event)">
+        <input class="full" id="pantryAdd" list="ingredientNames" placeholder="Add something else you have (e.g. olive oil)" autocomplete="off">
+        <button type="submit">Add to pantry</button>
+      </form>
     </div>
   </section>
 </main>
@@ -684,7 +769,7 @@
   <button data-view="history" onclick="switchTab('history')"><span class="ic">📊</span>History</button>
   <button data-view="progress" onclick="switchTab('progress')"><span class="ic">📈</span>Progress</button>
   <button data-view="plan" onclick="switchTab('plan')"><span class="ic">🛒</span>Plan</button>
-  <button data-view="tips" onclick="switchTab('tips')"><span class="ic">💡</span>Tips</button>
+  <button data-view="ingredients" onclick="switchTab('ingredients')"><span class="ic">🥕</span>Ingredients</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -696,6 +781,46 @@
     <div id="mealDetailBody"></div>
     <button class="save-modal" onclick="confirmAddMealDetail()">➕ Add to today's log</button>
     <button class="close-modal" onclick="closeMealDetail()">Cancel</button>
+  </div>
+</div>
+
+<!-- Edit ingredient modal -->
+<div class="modal-bg" id="ingredientEditModal">
+  <div class="modal">
+    <h3 id="eiTitle">✏️ Edit ingredient</h3>
+    <p id="eiNote" style="font-size:.78rem;color:var(--sub);margin-top:-6px;"></p>
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="eiName">
+    </div>
+    <div class="row2b">
+      <div class="field"><label>Serving size</label><input type="number" id="eiAmount" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Unit</label><select id="eiUnit"></select></div>
+    </div>
+    <div class="field"><label>Serving weight in grams (optional)</label><input type="number" id="eiGrams" min="0" step="any" inputmode="decimal"></div>
+    <div class="row2b">
+      <div class="field"><label>Calories</label><input type="number" id="eiCal" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Fiber (g)</label><input type="number" id="eiFiber" min="0" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row2b">
+      <div class="field"><label>Protein (g)</label><input type="number" id="eiProtein" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Carbs (g)</label><input type="number" id="eiCarbs" min="0" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row2b">
+      <div class="field"><label>Fat (g)</label><input type="number" id="eiFat" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Usual store</label>
+        <select id="eiStore">
+          <option>QFC</option>
+          <option>Farmers Market</option>
+          <option>Costco</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <button class="save-modal" onclick="saveIngredientEdit()">Save changes</button>
+    <button type="button" class="suggest-btn" id="eiReset" style="display:none;" onclick="resetIngredientToOriginal()">↩ Reset to original values</button>
+    <button type="button" class="suggest-btn" style="color:var(--coral);border-color:var(--coral);" onclick="deleteIngredientFromEdit()">🗑️ Delete this ingredient</button>
+    <button class="close-modal" onclick="closeIngredientEdit()">Cancel</button>
   </div>
 </div>
 
@@ -887,11 +1012,12 @@ const NUTRITION_DB = [
 function findNutritionMatch(name){
   const n = (name||'').toLowerCase().trim();
   if(!n) return null;
-  for(const item of NUTRITION_DB){
+  const ALL = allIngredients();
+  for(const item of ALL){
     if(item.aliases.includes(n)) return item;
   }
   let best = null, bestLen = 0;
-  NUTRITION_DB.forEach(item=>{
+  ALL.forEach(item=>{
     item.aliases.forEach(a=>{
       if((n.includes(a) || a.includes(n)) && a.length > bestLen){
         bestLen = a.length; best = item;
@@ -911,6 +1037,7 @@ function gramsFor(item, unit, amount){
 
 function estimateIngredientMacros(btn){
   const row = btn.closest('.ingredient-row');
+  row.dataset.manual = '';
   const name = row.querySelector('.ing-name').value.trim();
   const amount = row.querySelector('.ing-amount').value;
   const unit = row.querySelector('.ing-unit').value;
@@ -924,20 +1051,21 @@ function estimateIngredientMacros(btn){
     showToast('No match for "'+name+'" — try a simpler name or enter macros manually');
     return;
   }
-  const grams = gramsFor(match, unit, amount);
-  if(grams===null){
-    showToast('No '+unit+' conversion for that ingredient — try g, oz, or lb');
+  const mr = macrosFor(match, unit, amount);
+  if(!mr){
+    showToast(match.custom
+      ? 'Your label for "'+name+'" is per '+match.serving.amount+' '+match.serving.unit+' — use that unit or add its weight in grams'
+      : 'No '+unit+' conversion for that ingredient — try g, oz, or lb');
     return;
   }
-  const factor = grams/100;
-  row.querySelector('.ing-cal').value = Math.round(match.per100g.cal * factor);
-  row.querySelector('.ing-p').value = Math.round(match.per100g.p * factor * 10)/10;
-  row.querySelector('.ing-c').value = Math.round(match.per100g.c * factor * 10)/10;
-  row.querySelector('.ing-f').value = Math.round(match.per100g.f * factor * 10)/10;
-  row.querySelector('.ing-fi').value = Math.round((match.per100g.fi||0) * factor * 10)/10;
+  row.querySelector('.ing-cal').value = Math.round(mr.cal);
+  row.querySelector('.ing-p').value = Math.round(mr.p*10)/10;
+  row.querySelector('.ing-c').value = Math.round(mr.c*10)/10;
+  row.querySelector('.ing-f').value = Math.round(mr.f*10)/10;
+  row.querySelector('.ing-fi').value = Math.round(mr.fi*10)/10;
 
   recalcMealTotals();
-  showToast('Estimated from reference data for "'+name+'"');
+  showToast((match.custom ? 'Calculated from your saved label for "' : 'Estimated from reference data for "')+name+'"');
 }
 
 let _uidN=0;
@@ -1038,13 +1166,17 @@ function defaultData(){
     mealPlan: buildDefaultPlan(), // {0..6 (Sun-Sat)}: {Breakfast,Lunch,Dinner: goToMealId|null}
     planSlotSplit: {Breakfast:25, Lunch:30, Dinner:45}, // % of daily calorie goal
     groceryStoreTags: {}, // ingredient name (lowercase) -> 'QFC'|'Farmers Market'|'Costco'|'Other'
-    groceryChecked: {} // itemKey -> bool
+    groceryChecked: {}, // itemKey -> bool
+    customIngredients: [], // {id,name,servingAmount,servingUnit,servingGrams,cal,p,c,f,fi,store}
+    pantry: {}, // pantryKey -> display name
+    hiddenIngredients: {} // built-in library items you removed (key -> true)
   };
 }
 
 function loadData(){
   const d = loadDataRaw();
-  migrateFiber(d);
+  window._migrating = d; // lets lookups see the data being loaded before `data` exists
+  try{ migrateFiber(d); }finally{ window._migrating = null; }
   return d;
 }
 
@@ -1053,8 +1185,8 @@ function ingredientFiber(i){
   if(i.fi!==undefined && i.fi!==null && i.fi!=='') return Number(i.fi)||0;
   const m = findNutritionMatch(i.name);
   if(!m) return 0;
-  const g = gramsFor(m, i.unit, i.amount);
-  return g===null ? 0 : (m.per100g.fi||0) * g / 100;
+  const mr = macrosFor(m, i.unit, i.amount);
+  return mr ? (mr.fi||0) : 0;
 }
 function fillFiberFor(item){
   if(!item || (item.fi!==undefined && item.fi!==null)) return;
@@ -1088,7 +1220,10 @@ function loadDataRaw(){
       mealPlan: parsed.mealPlan || dflt.mealPlan,
       planSlotSplit: Object.assign({Breakfast:25,Lunch:30,Dinner:45}, parsed.planSlotSplit||{}),
       groceryStoreTags: parsed.groceryStoreTags || {},
-      groceryChecked: parsed.groceryChecked || {}
+      groceryChecked: parsed.groceryChecked || {},
+      customIngredients: Array.isArray(parsed.customIngredients) ? parsed.customIngredients : [],
+      pantry: (parsed.pantry && typeof parsed.pantry==='object' && !Array.isArray(parsed.pantry)) ? parsed.pantry : {},
+      hiddenIngredients: (parsed.hiddenIngredients && typeof parsed.hiddenIngredients==='object' && !Array.isArray(parsed.hiddenIngredients)) ? parsed.hiddenIngredients : {}
     });
   }catch(e){
     // Don't silently overwrite unreadable data: keep a copy and stop auto-saving over it
@@ -1183,6 +1318,7 @@ function switchTab(view){
     renderPlanGrid();
     populateSlotSplitInputs();
   }
+  if(view==='ingredients') renderIngredientsTab();
 }
 
 /* ---------- Rendering: Today (food) ---------- */
@@ -1261,6 +1397,117 @@ function renderQuickGrid(){
   grid.appendChild(addBtn);
 }
 
+/* ---------- Ingredient search & auto-calc inside the Log food form ---------- */
+function exactIngredient(name){
+  const n = String(name||'').toLowerCase().trim();
+  if(!n) return null;
+  return allIngredients().find(it=> it.aliases.indexOf(n)!==-1 || itemName(it).toLowerCase()===n) || null;
+}
+function defaultUnitFor(it){
+  if(it.custom) return it.serving.unit;
+  const u = Object.keys(it.units||{});
+  return u.length ? u[0] : 'oz';
+}
+function ingSearchMatches(q){
+  q = String(q||'').toLowerCase().trim();
+  if(!q) return [];
+  const starts = [], has = [];
+  allIngredients().forEach(it=>{
+    const nm = itemName(it).toLowerCase();
+    if(nm.indexOf(q)===0 || it.aliases.some(a=>a.indexOf(q)===0)) starts.push(it);
+    else if(nm.indexOf(q)!==-1 || it.aliases.some(a=>a.indexOf(q)!==-1)) has.push(it);
+  });
+  return starts.concat(has).slice(0,6);
+}
+function setIngStatus(row, text, warn){
+  const el = row.querySelector('.ing-status');
+  if(!el) return;
+  el.textContent = text || '';
+  el.style.color = warn ? 'var(--yellow)' : 'var(--good)';
+}
+function hideIngSuggest(row){
+  const box = row.querySelector('.ing-suggest');
+  if(box) box.style.display = 'none';
+}
+function showIngSuggest(row){
+  const box = row.querySelector('.ing-suggest');
+  if(!box) return;
+  const q = row.querySelector('.ing-name').value.trim();
+  const ms = ingSearchMatches(q);
+  box.innerHTML = '';
+  const only = ms.length===1 && itemName(ms[0]).toLowerCase()===q.toLowerCase();
+  if(!q || ms.length===0 || only){ box.style.display = 'none'; return; }
+  ms.forEach(it=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ing-suggest-item';
+    const nm = document.createElement('b');
+    nm.textContent = itemName(it)+(it.custom ? ' ★' : '');
+    const info = document.createElement('span');
+    info.textContent = it.per100g ? Math.round(it.per100g.cal)+' cal / 100 g' : Math.round(it.serving.cal)+' cal / '+it.serving.amount+' '+it.serving.unit;
+    b.appendChild(nm); b.appendChild(info);
+    b.addEventListener('click', function(){ pickIngredient(row, it); });
+    box.appendChild(b);
+  });
+  box.style.display = 'block';
+}
+function pickIngredient(row, it){
+  row.querySelector('.ing-name').value = itemName(it);
+  row.dataset.manual = '';
+  const unitSel = row.querySelector('.ing-unit');
+  if(!unitSel.value) unitSel.value = defaultUnitFor(it);
+  hideIngSuggest(row);
+  autoCalcRow(row);
+  const amt = row.querySelector('.ing-amount');
+  if(amt && amt.focus) amt.focus();
+}
+/* When an exact library/label ingredient is chosen, macros follow the amount and unit */
+function autoCalcRow(row){
+  if(row.dataset.manual==='1') return;
+  const name = row.querySelector('.ing-name').value.trim();
+  const it = exactIngredient(name);
+  if(!it){ setIngStatus(row, ''); return; }
+  const src = it.custom ? 'your saved label' : 'the ingredient library';
+  const amount = row.querySelector('.ing-amount').value;
+  const unit = row.querySelector('.ing-unit').value;
+  if(!(Number(amount)>0)){ setIngStatus(row, '✓ '+itemName(it)+' ('+src+') — type the amount you\'re using'); return; }
+  if(!unit){ setIngStatus(row, 'Pick a unit for the amount', true); return; }
+  const r = macrosFor(it, unit, amount);
+  if(!r){
+    setIngStatus(row, it.custom
+      ? 'Your label is per '+it.serving.amount+' '+it.serving.unit+' — use that unit, or add its weight in grams on the Ingredients tab'
+      : 'No '+unit+' conversion for '+itemName(it)+' — try g, oz or lb', true);
+    return;
+  }
+  row.querySelector('.ing-cal').value = Math.round(r.cal);
+  row.querySelector('.ing-p').value = Math.round(r.p*10)/10;
+  row.querySelector('.ing-c').value = Math.round(r.c*10)/10;
+  row.querySelector('.ing-f').value = Math.round(r.f*10)/10;
+  row.querySelector('.ing-fi').value = Math.round(r.fi*10)/10;
+  setIngStatus(row, '✓ Macros calculated from '+src+': '+itemName(it));
+  recalcMealTotals();
+}
+function ingRowInput(e){
+  const t = e.target;
+  const row = t.closest && t.closest('.ingredient-row');
+  if(!row) return;
+  if(t.classList.contains('ing-name')){
+    row.dataset.manual = '';
+    showIngSuggest(row);
+    autoCalcRow(row);
+  } else if(t.classList.contains('ing-amount') || t.classList.contains('ing-unit')){
+    autoCalcRow(row);
+  } else if(t.classList.contains('ing-cal') || t.classList.contains('ing-p') || t.classList.contains('ing-c') || t.classList.contains('ing-f') || t.classList.contains('ing-fi')){
+    row.dataset.manual = '1';
+    if(exactIngredient(row.querySelector('.ing-name').value)) setIngStatus(row, 'Edited by hand — tap ≈ to recalculate from the amount');
+  }
+}
+function ingRowFocusOut(e){
+  const row = e.target.closest && e.target.closest('.ingredient-row');
+  if(!row || !e.target.classList.contains('ing-name')) return;
+  setTimeout(function(){ hideIngSuggest(row); }, 250);
+}
+
 /* ---------- Ingredient row builder (Log food form) ---------- */
 function addIngredientRow(prefill){
   const container = document.getElementById('ingredientRows');
@@ -1269,10 +1516,12 @@ function addIngredientRow(prefill){
   const unitOptions = '<option value="">unit</option>'+INGREDIENT_UNITS.map(u=>'<option>'+u+'</option>').join('');
   row.innerHTML =
     '<div class="ing-row1">'+
-      '<input type="text" class="ing-name" placeholder="Ingredient (e.g. Chicken breast)">'+
+      '<input type="text" class="ing-name" placeholder="Search ingredients or type your own" autocomplete="off">'+
       '<button type="button" class="ing-estimate" onclick="estimateIngredientMacros(this)" title="Estimate macros">≈</button>'+
       '<button type="button" class="ing-remove" onclick="removeIngredientRow(this)">✕</button>'+
     '</div>'+
+    '<div class="ing-suggest" style="display:none;"></div>'+
+    '<div class="ing-status"></div>'+
     '<div class="ing-row2">'+
       '<input type="number" min="0" step="any" inputmode="decimal" class="ing-amount" placeholder="Amount">'+
       '<select class="ing-unit">'+unitOptions+'</select>'+
@@ -1331,10 +1580,15 @@ function recalcMealTotals(){
   }
 }
 
-function collectIngredients(){
+function collectIngredients(onlyComplete){
   const rows = document.querySelectorAll('#ingredientRows .ingredient-row');
   const list = [];
   rows.forEach(r=>{
+    if(onlyComplete){
+      // complete = amount > 0, a unit, and calories/protein/carbs/fat/fiber all filled in (0 counts as filled)
+      const filled = ['.ing-cal','.ing-p','.ing-c','.ing-f','.ing-fi'].every(c=> r.querySelector(c).value.trim()!=='');
+      if(!(filled && Number(r.querySelector('.ing-amount').value)>0 && r.querySelector('.ing-unit').value)) return;
+    }
     const name = r.querySelector('.ing-name').value.trim();
     const amountRaw = r.querySelector('.ing-amount').value;
     const unit = r.querySelector('.ing-unit').value;
@@ -1501,6 +1755,7 @@ function addEntry(ev){
   const ingredients = collectIngredients();
   if(!name || cals<=0) return false;
 
+  const newIng = saveNewIngredients(collectIngredients(true));
   const log = getTodayLog();
   log.push({id:uid('e'), name, meal, cals, p, c, f, fi, ingredients, time:Date.now()});
 
@@ -1513,7 +1768,7 @@ function addEntry(ev){
   document.getElementById('fMeal').value = meal;
   resetIngredientRows();
   renderToday();
-  showToast(name+' added ✓');
+  showToast(name+' added ✓'+(newIng ? ' · '+newIng+' new ingredient'+(newIng>1?'s':'')+' saved' : ''));
   return false;
 }
 
@@ -2352,6 +2607,7 @@ function renderPlanGrid(){
 
     wrap.appendChild(dayDiv);
   }
+  refreshShopping(true);
 }
 
 function setPlanMeal(day, slot, mealId){
@@ -2393,7 +2649,7 @@ function guessStore(name){
   return 'QFC';
 }
 
-function generateGroceryList(){
+function weeklyNeeds(){
   const totals = {};
   for(let d=0; d<7; d++){
     PLAN_SLOTS.forEach(slot=>{
@@ -2409,18 +2665,82 @@ function generateGroceryList(){
       });
     });
   }
-  const items = Object.values(totals);
-  if(items.length===0){
-    showToast('Assign meals to your weekly plan first');
-  }
-  renderGroceryList(items);
+  return Object.values(totals);
 }
 
-function renderGroceryList(items){
-  const wrap = document.getElementById('groceryList');
+/* Everything the week's plan needs, split by what's already in the pantry */
+function generateGroceryList(silent){
+  const items = weeklyNeeds();
+  if(items.length===0 && silent!==true){
+    showToast('Assign meals to your weekly plan first');
+  }
+  renderGroceryList(items.filter(it=>!inPantry(it.name)), items.filter(it=>inPantry(it.name)));
+}
+
+function refreshShopping(silent){
+  if(!document.getElementById('pantryCheckList')) return;
+  renderPantryCheck();
+  generateGroceryList(silent===true);
+}
+
+function renderPantryCheck(){
+  const wrap = document.getElementById('pantryCheckList');
+  const sum = document.getElementById('pantrySummary');
+  if(!wrap || !sum) return;
+  const items = weeklyNeeds().sort((a,b)=>a.name.localeCompare(b.name));
   wrap.innerHTML = '';
   if(items.length===0){
-    wrap.innerHTML = '<div class="empty">Assign meals to your weekly plan, then generate the list.</div>';
+    sum.textContent = 'Assign meals to your weekly menu to see what you need.';
+    return;
+  }
+  const have = items.filter(it=>inPantry(it.name)).length;
+  sum.innerHTML = '<b>'+items.length+'</b> ingredients needed · <b style="color:var(--good)">'+have+'</b> in your pantry · <b style="color:var(--yellow)">'+(items.length-have)+'</b> left to buy';
+  items.forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'grocery-item';
+    const label = document.createElement('label');
+    label.className = 'grocery-check-label';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = inPantry(it.name);
+    const span = document.createElement('span');
+    span.className = 'grocery-item-text';
+    const amtTxt = it.amount ? (Math.round(it.amount*10)/10)+' '+(it.unit||'') : (it.unit||'');
+    span.textContent = it.name+' — '+amtTxt+(cb.checked ? '  ✓ have it' : '');
+    cb.onchange = function(){
+      setPantry(it.name, cb.checked);
+      refreshShopping(true);
+    };
+    label.appendChild(cb);
+    label.appendChild(span);
+    row.appendChild(label);
+    wrap.appendChild(row);
+  });
+}
+
+function appendSkipped(wrap, skipped){
+  if(!skipped || skipped.length===0) return;
+  const d = document.createElement('div');
+  d.className = 'grocery-skipped';
+  const names = Array.from(new Set(skipped.map(s=>s.name))).sort();
+  d.textContent = '✅ Already in your pantry (not on this list): '+names.join(', ');
+  wrap.appendChild(d);
+}
+
+function customStoreFor(name){
+  const m = findNutritionMatch(name);
+  return (m && m.custom && m.store) ? m.store : '';
+}
+
+function renderGroceryList(items, skipped){
+  const wrap = document.getElementById('groceryList');
+  wrap.innerHTML = '';
+  skipped = skipped || [];
+  if(items.length===0){
+    wrap.innerHTML = skipped.length
+      ? '<div class="empty">🎉 You already have everything this week\'s plan needs.</div>'
+      : '<div class="empty">Assign meals to your weekly plan, then generate the list.</div>';
+    appendSkipped(wrap, skipped);
     return;
   }
 
@@ -2428,7 +2748,7 @@ function renderGroceryList(items){
   items.sort((a,b)=>a.name.localeCompare(b.name)).forEach(it=>{
     const nameKey = it.name.toLowerCase();
     it.itemKey = nameKey+'|'+it.unit;
-    const store = data.groceryStoreTags[nameKey] || guessStore(it.name);
+    const store = data.groceryStoreTags[nameKey] || customStoreFor(it.name) || guessStore(it.name);
     it.store = store;
     (groups[store]||groups['Other']).push(it);
   });
@@ -2486,6 +2806,7 @@ function renderGroceryList(items){
       wrap.appendChild(row);
     });
   });
+  appendSkipped(wrap, skipped);
 }
 
 function copyGroceryList(){
@@ -2680,54 +3001,503 @@ function importDataFile(ev){
   ev.target.value = '';
 }
 
-/* ---------- Tips & facts ---------- */
-const TIPS = [
-  "Protein at every meal helps preserve muscle and keeps you fuller longer — aim for a palm-sized portion.",
-  "Fiber-rich carbs (vegetables, beans, whole grains) slow digestion and help stabilize energy and mood.",
-  "Strength training 2–3x/week does more for long-term metabolism than cardio alone — muscle burns more at rest.",
-  "Consistency beats perfection. Hitting your goal 80% of the time, every week, outperforms an all-or-nothing approach.",
-  "Sleep is a nutrition tool: poor sleep raises hunger hormones (ghrelin) and cravings for high-calorie food the next day.",
-  "Hydration first: thirst is often mistaken for hunger. Drink water before deciding you need a snack.",
-  "Progressive overload — gradually increasing weight, reps, or sets — is the main driver of strength and muscle gains.",
-  "Whole foods take longer to digest and are harder to overeat than ultra-processed foods with the same calorie count.",
-  "A short walk after meals can meaningfully improve blood sugar response, especially after carb-heavy meals.",
-  "You don't need to fear fat — healthy fats (olive oil, nuts, avocado, fish) support hormones and nutrient absorption.",
-  "Track trends, not single days. Weight and energy naturally fluctuate day to day; look at weekly averages.",
-  "Pre-logging your go-to meals removes decision fatigue and makes it far easier to stay consistent.",
-  "Recovery days matter as much as training days — that's when muscle actually rebuilds and adapts.",
-  "Eating enough overall calories matters for performance; chronic under-eating can stall both fat loss and strength gains.",
-  "Small, sustainable changes (one better meal choice a day) compound more reliably than dramatic short-term diets.",
-  "A pace of 1-2 lbs lost per week is widely considered a sustainable, evidence-backed range for most adults.",
-  "A common progression rule: once you can complete all sets at the top of your rep range for 2-3 sessions in a row, add weight.",
-  "Planning your week's meals in advance reduces impulsive, higher-calorie choices — a grocery list built from your plan helps you stick to it."
-];
+/* ---------- Ingredient library, custom foods, calculator, pantry ---------- */
+function cap(s){ s = String(s||''); return s.charAt(0).toUpperCase()+s.slice(1); }
+function r1(x){ return Math.round((Number(x)||0)*10)/10; }
 
-const FACTS = [
-  "Fat cells don't just store energy — they act like an endocrine organ, releasing hormones that regulate appetite and metabolism.",
-  "You can't 'spot reduce' fat from one area by exercising it — fat loss happens across the whole body, determined largely by genetics and overall energy balance.",
-  "Muscle tissue burns more calories at rest than fat tissue, which is why strength training can raise your resting metabolic rate over time.",
-  "The body can burn a mix of fat and carbs for fuel — the ratio shifts based on exercise intensity, with fat burning proportionally more during lower-intensity activity.",
-  "It takes roughly a 3,500-calorie deficit to lose about one pound of body fat, though this varies by individual metabolism and body composition.",
-  "Your resting metabolism accounts for the majority of daily calories burned — often 60-75% — even before you factor in exercise.",
-  "Brown fat, a special type of fat tissue, actually burns calories to generate heat, unlike regular white fat which mainly stores energy.",
-  "Water makes up about 60% of adult body weight and is essential for nearly every metabolic process, including breaking down nutrients.",
-  "The gut contains trillions of bacteria that can influence digestion, inflammation, and even appetite signals — diet diversity supports a healthier gut microbiome.",
-  "Muscle memory is real: cells that were once part of larger muscle fibers retain a molecular 'memory' that helps you regain strength faster after time off.",
-  "The liver stores roughly 24 hours' worth of glucose as glycogen, buffering blood sugar between meals.",
-  "It takes about 20 minutes for your brain to register fullness signals from your stomach — eating slowly can reduce overeating.",
-  "Protein has a higher 'thermic effect' than fat or carbs — your body burns more calories digesting protein than the other macronutrients.",
-  "Regular exercise can improve insulin sensitivity within days, helping muscles use blood sugar more efficiently.",
-  "Bone is living tissue that remodels constantly — weight-bearing exercise stimulates bone density, which matters increasingly with age.",
-  "Weekly weight fluctuations of 2-5 lbs from water, sodium, and hormones are normal and don't reflect actual fat gain or loss.",
-  "Strength gains in the first weeks of a new program come mostly from nervous-system efficiency, not muscle growth — that comes later."
-];
+/* A saved label becomes a library-style item (per-100g when the serving weight is known) */
+function customToItem(c){
+  const amt = Number(c.servingAmount)||1;
+  const unit = c.servingUnit || 'g';
+  const nameKey = String(c.name||'').toLowerCase().trim();
+  const item = {custom:true, id:c.id, name:c.name, store:c.store||'', source:c.source||'', replaces:c.replaces||'',
+    aliases:[nameKey].concat((Array.isArray(c.aliases) ? c.aliases : []).filter(a=>a!==nameKey)),
+    serving:{amount:amt, unit:unit, cal:Number(c.cal)||0, p:Number(c.p)||0, c:Number(c.c)||0, f:Number(c.f)||0, fi:Number(c.fi)||0}};
+  let g = Number(c.servingGrams)||0;
+  if(!g && UNIVERSAL_UNIT_GRAMS[unit]) g = amt*UNIVERSAL_UNIT_GRAMS[unit];
+  if(g>0){
+    const k = 100/g;
+    item.per100g = {cal:item.serving.cal*k, p:item.serving.p*k, c:item.serving.c*k, f:item.serving.f*k, fi:item.serving.fi*k};
+    item.units = Object.assign({}, c.units||{}); item.units[unit] = g/amt;
+    item.servingGrams = g;
+  }
+  return item;
+}
+function allIngredients(){
+  const src = window._migrating || data;
+  const hidden = src.hiddenIngredients || {};
+  return (src.customIngredients||[]).map(customToItem).concat(NUTRITION_DB.filter(it=> !hidden['k:'+it.aliases[0]]));
+}
+function itemName(it){ return it.custom ? it.name : cap(it.aliases[0]); }
+function itemKey(it){ return 'k:'+it.aliases[0]; }
 
-let tipIdx = Math.floor(Math.random()*TIPS.length);
-let factIdx = Math.floor(Math.random()*FACTS.length);
-function renderTip(){ document.getElementById('tipText').textContent = TIPS[tipIdx]; }
-function renderFact(){ document.getElementById('factText').textContent = FACTS[factIdx]; }
-function nextTip(){ tipIdx = (tipIdx+1)%TIPS.length; renderTip(); }
-function nextFact(){ factIdx = (factIdx+1)%FACTS.length; renderFact(); }
+/* Macros for an amount of an ingredient, from the label serving or per-100g reference data */
+function macrosFor(item, unit, amount){
+  amount = Number(amount)||0;
+  if(amount<=0 || !unit) return null;
+  if(item.per100g){
+    const g = gramsFor(item, unit, amount);
+    if(g!==null){
+      const f = g/100;
+      return {cal:item.per100g.cal*f, p:item.per100g.p*f, c:item.per100g.c*f, f:item.per100g.f*f, fi:(item.per100g.fi||0)*f};
+    }
+  }
+  if(item.serving && unit===item.serving.unit){
+    const f = amount/item.serving.amount;
+    return {cal:item.serving.cal*f, p:item.serving.p*f, c:item.serving.c*f, f:item.serving.f*f, fi:item.serving.fi*f};
+  }
+  return null;
+}
+function macroLine(m){
+  return Math.round(m.cal)+' cal · P '+r1(m.p)+'g · C '+r1(m.c)+'g · F '+r1(m.f)+'g · Fiber '+r1(m.fi)+'g';
+}
+
+/* ----- Pantry ----- */
+function pantryKey(name){
+  const m = findNutritionMatch(name);
+  return m ? itemKey(m) : 'n:'+String(name||'').toLowerCase().trim();
+}
+function inPantry(name){ return !!(data.pantry && data.pantry[pantryKey(name)]); }
+function setPantryKey(key, display, on){
+  if(!data.pantry) data.pantry = {};
+  if(on) data.pantry[key] = display; else delete data.pantry[key];
+  saveData();
+}
+function setPantry(name, on){
+  const m = findNutritionMatch(name);
+  setPantryKey(pantryKey(name), m ? itemName(m) : cap(String(name).trim()), on);
+}
+
+/* ----- Calculator ----- */
+function fillUnitSelect(id, placeholder){
+  const sel = document.getElementById(id);
+  if(!sel || sel.options.length) return;
+  const first = document.createElement('option');
+  first.value = ''; first.textContent = placeholder;
+  sel.appendChild(first);
+  INGREDIENT_UNITS.forEach(u=>{ const o = document.createElement('option'); o.value = u; o.textContent = u; sel.appendChild(o); });
+}
+
+function populateIngredientNames(){
+  const dl = document.getElementById('ingredientNames');
+  if(!dl) return;
+  dl.innerHTML = '';
+  allIngredients().forEach(it=>{ const o = document.createElement('option'); o.value = itemName(it); dl.appendChild(o); });
+}
+
+function calcUpdate(){
+  const box = document.getElementById('calcResult');
+  const name = document.getElementById('calcName').value.trim();
+  const amount = document.getElementById('calcAmount').value;
+  const unit = document.getElementById('calcUnit').value;
+  window._calc = null;
+  if(!name){ box.textContent = 'Type an ingredient and the amount you\'re using.'; return; }
+  const m = findNutritionMatch(name);
+  if(!m){ box.textContent = 'No match for "'+name+'". Add it below under "Add your own ingredient" using its nutrition label.'; return; }
+  const src = m.custom ? 'your saved label' : 'the ingredient library';
+  if(!amount || Number(amount)<=0 || !unit){
+    box.innerHTML = 'Matched <b>'+escapeHtml(itemName(m))+'</b> from '+src+'. Enter an amount and unit.';
+    return;
+  }
+  const r = macrosFor(m, unit, amount);
+  if(!r){
+    box.innerHTML = 'No <b>'+escapeHtml(unit)+'</b> conversion for '+escapeHtml(itemName(m))+(m.custom
+      ? ' — its label is per '+m.serving.amount+' '+escapeHtml(m.serving.unit)+'. Use that unit, or add the serving weight in grams.'
+      : ' — try g, oz or lb.');
+    return;
+  }
+  window._calc = {name:name, amount:Number(amount), unit:unit, r:r};
+  box.innerHTML = '<b style="font-size:1.05rem;">'+Math.round(r.cal)+' cal</b><br>P '+r1(r.p)+'g · C '+r1(r.c)+'g · F '+r1(r.f)+'g · Fiber '+r1(r.fi)+'g'+
+    '<br><span style="color:var(--sub);font-size:.75rem;">From '+src+': '+escapeHtml(itemName(m))+'</span>';
+}
+
+function calcIngredient(){
+  const c = window._calc;
+  return {name:c.name, amount:c.amount, unit:c.unit, cal:Math.round(c.r.cal), p:r1(c.r.p), c:r1(c.r.c), f:r1(c.r.f), fi:r1(c.r.fi)};
+}
+
+function calcLog(){
+  if(!window._calc){ showToast('Enter an ingredient and amount first'); return; }
+  const ing = calcIngredient();
+  const meal = document.getElementById('calcMeal').value;
+  const log = getTodayLog();
+  log.push({id:uid('e'), name:ing.amount+' '+ing.unit+' '+ing.name, meal:meal, cals:ing.cal, p:ing.p, c:ing.c, f:ing.f, fi:ing.fi, ingredients:[ing], time:Date.now()});
+  saveData();
+  renderToday();
+  showToast('Added to '+meal+' ✓');
+}
+
+function calcToForm(){
+  if(!window._calc){ showToast('Enter an ingredient and amount first'); return; }
+  const ing = calcIngredient();
+  document.querySelectorAll('#ingredientRows .ingredient-row').forEach(r=>{
+    if(!r.querySelector('.ing-name').value.trim() && !r.querySelector('.ing-cal').value) r.remove();
+  });
+  addIngredientRow(ing);
+  recalcMealTotals();
+  switchTab('today');
+  showToast('Added to the Log food form ✓');
+  const rows = document.getElementById('ingredientRows');
+  if(rows && rows.scrollIntoView) rows.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+/* Only ingredients with an amount, a unit and every macro filled in are saved to the Ingredients tab, exactly as entered.
+   `guess` = list came from saved data, where a blank can't be told from a 0, so it also needs calories and some macros. */
+function saveNewIngredients(list, guess){
+  let added = 0;
+  (Array.isArray(list) ? list : []).forEach(i=>{
+    if(!i || !i.name) return;
+    const name = String(i.name).trim();
+    if(!name || exactIngredient(name)) return;
+    const amt = Number(i.amount);
+    if(!(amt>0) || !i.unit) return;
+    const cal = Number(i.cal)||0, p = Number(i.p)||0, c = Number(i.c)||0, f = Number(i.f)||0, fi = Number(i.fi)||0;
+    if(guess && !(cal>0 && (p+c+f)>0)) return;
+    data.customIngredients.push({id:uid('ci'), name:name, servingAmount:amt, servingUnit:i.unit, servingGrams:0,
+      cal:cal, p:p, c:c, f:f, fi:fi, store:guessStore(name), source:'meal'});
+    added++;
+  });
+  return added;
+}
+
+/* One tap: add every ingredient from your saved meals and past logs that isn't in the list yet */
+function importIngredientsFromMeals(){
+  let added = 0;
+  data.goToMeals.forEach(m=>{ added += saveNewIngredients(m.ingredients, true); });
+  Object.keys(data.logs||{}).forEach(k=>{ (data.logs[k]||[]).forEach(e=>{ added += saveNewIngredients(e.ingredients, true); }); });
+  if(added) saveData();
+  renderIngredientsTab();
+  showToast(added ? added+' ingredient'+(added>1?'s':'')+' added from your meals ✓' : 'Nothing new — all your meal ingredients are already here');
+}
+
+/* ----- Add your own ingredient (from a nutrition label) ----- */
+function addCustomIngredient(ev){
+  ev.preventDefault();
+  const v = id=>document.getElementById(id).value;
+  const name = v('ciName').trim();
+  const amt = Number(v('ciAmount'));
+  const unit = v('ciUnit');
+  if(!name){ showToast('Name is required'); return false; }
+  if(!(amt>0)){ showToast('Serving size is required'); return false; }
+  if(!unit){ showToast('Pick a serving unit'); return false; }
+  const rec = {id:uid('ci'), name:name, servingAmount:amt, servingUnit:unit, servingGrams:Number(v('ciGrams'))||0,
+    cal:Number(v('ciCal'))||0, p:Number(v('ciProtein'))||0, c:Number(v('ciCarbs'))||0, f:Number(v('ciFat'))||0, fi:Number(v('ciFiber'))||0, store:v('ciStore')};
+  const key = name.toLowerCase();
+  const idx = data.customIngredients.findIndex(c=>String(c.name).toLowerCase()===key);
+  if(idx>=0){ rec.id = data.customIngredients[idx].id; data.customIngredients[idx] = rec; }
+  else data.customIngredients.push(rec);
+  saveData();
+  ev.target.reset();
+  renderIngredientsTab();
+  showToast(name+(idx>=0 ? ' updated ✓' : ' saved ✓'));
+  return false;
+}
+
+function removeCustomIngredient(id){
+  const rec = data.customIngredients.find(c=>c.id===id);
+  if(!rec) return;
+  if(!window.confirm('Delete "'+rec.name+'" from your ingredients?')) return;
+  delete data.pantry['k:'+String(rec.name).toLowerCase().trim()];
+  data.customIngredients = data.customIngredients.filter(c=>c.id!==id);
+  saveData();
+  closeIngredientEdit();
+  renderIngredientsTab();
+  showToast('Deleted '+rec.name);
+}
+
+function removeLibraryIngredient(key){
+  const it = NUTRITION_DB.find(x=>itemKey(x)===key);
+  if(!it) return;
+  if(!window.confirm('Remove "'+itemName(it)+'" from your ingredient library? You can restore removed items later.')) return;
+  data.hiddenIngredients[key] = true;
+  delete data.pantry[key];
+  saveData();
+  closeIngredientEdit();
+  renderIngredientsTab();
+  showToast('Removed '+itemName(it));
+}
+
+/* Un-hide removed library items (skips ones you replaced with an edited copy) */
+function restoreRemovedIngredients(){
+  const replaced = {};
+  data.customIngredients.forEach(c=>{ if(c.replaces) replaced[c.replaces] = true; });
+  let n = 0;
+  Object.keys(data.hiddenIngredients).forEach(k=>{
+    if(replaced[k]) return;
+    delete data.hiddenIngredients[k];
+    n++;
+  });
+  saveData();
+  renderIngredientsTab();
+  showToast(n ? 'Restored '+n+' ingredient'+(n>1?'s':'') : 'Nothing to restore');
+}
+
+/* ----- Edit an ingredient (saved ones in place; library ones become an edited copy) ----- */
+window._editingIng = null;
+
+function openIngredientEdit(it){
+  fillUnitSelect('eiUnit','Serving unit');
+  const builtin = !it.custom;
+  window._editingIng = builtin ? {kind:'builtin', key:itemKey(it)} : {kind:'custom', id:it.id};
+  const set = (id,v)=>{ document.getElementById(id).value = v; };
+  const lock = (on)=>{ ['eiAmount','eiUnit','eiGrams'].forEach(id=>{ document.getElementById(id).disabled = on; }); };
+  document.getElementById('eiTitle').textContent = '✏️ Edit ingredient';
+  set('eiName', itemName(it));
+  if(builtin){
+    document.getElementById('eiNote').textContent = 'Library values are per 100 g. Your edited copy replaces the original, and cup/tbsp/piece conversions are kept.';
+    set('eiAmount', 100); set('eiUnit','g'); set('eiGrams', 100);
+    set('eiCal', r1(it.per100g.cal)); set('eiProtein', r1(it.per100g.p)); set('eiCarbs', r1(it.per100g.c)); set('eiFat', r1(it.per100g.f)); set('eiFiber', r1(it.per100g.fi||0));
+    set('eiStore', storeLabel(it));
+    lock(true);
+    document.getElementById('eiReset').style.display = 'none';
+  } else {
+    const rec = data.customIngredients.find(c=>c.id===it.id);
+    document.getElementById('eiNote').textContent = rec.replaces ? 'This is your edited copy of a library ingredient.' : 'Values are for the serving size below.';
+    set('eiAmount', rec.servingAmount); set('eiUnit', rec.servingUnit); set('eiGrams', rec.servingGrams || '');
+    set('eiCal', rec.cal); set('eiProtein', rec.p); set('eiCarbs', rec.c); set('eiFat', rec.f); set('eiFiber', rec.fi);
+    set('eiStore', rec.store || storeLabel(it));
+    lock(false);
+    document.getElementById('eiReset').style.display = rec.replaces ? 'block' : 'none';
+  }
+  document.getElementById('ingredientEditModal').classList.add('open');
+}
+
+function closeIngredientEdit(){
+  const m = document.getElementById('ingredientEditModal');
+  if(m) m.classList.remove('open');
+  window._editingIng = null;
+}
+
+function movePantryKey(oldKey, newKey, display){
+  if(oldKey!==newKey && data.pantry[oldKey]){
+    delete data.pantry[oldKey];
+    data.pantry[newKey] = display;
+  } else if(data.pantry[newKey]){
+    data.pantry[newKey] = display;
+  }
+}
+
+function saveIngredientEdit(){
+  const ed = window._editingIng;
+  if(!ed) return;
+  const v = id=>document.getElementById(id).value;
+  const name = v('eiName').trim();
+  if(!name){ showToast('Name is required'); return; }
+  const amt = Number(v('eiAmount')), unit = v('eiUnit');
+  if(!(amt>0) || !unit){ showToast('Serving size and unit are required'); return; }
+  const nameKey = name.toLowerCase();
+  const clash = allIngredients().find(x=>{
+    const self = ed.kind==='custom' ? (x.custom && x.id===ed.id) : itemKey(x)===ed.key;
+    return !self && (x.aliases.indexOf(nameKey)!==-1 || itemName(x).toLowerCase()===nameKey);
+  });
+  if(clash){ showToast('"'+itemName(clash)+'" already exists — pick a different name'); return; }
+  const vals = {name:name, servingAmount:amt, servingUnit:unit, servingGrams:Number(v('eiGrams'))||0,
+    cal:Number(v('eiCal'))||0, p:Number(v('eiProtein'))||0, c:Number(v('eiCarbs'))||0, f:Number(v('eiFat'))||0, fi:Number(v('eiFiber'))||0, store:v('eiStore')};
+  if(ed.kind==='custom'){
+    const idx = data.customIngredients.findIndex(c=>c.id===ed.id);
+    if(idx<0){ closeIngredientEdit(); return; }
+    const old = data.customIngredients[idx];
+    const oldKey = 'k:'+String(old.name).toLowerCase().trim();
+    data.customIngredients[idx] = Object.assign({}, old, vals);
+    movePantryKey(oldKey, 'k:'+nameKey, name);
+  } else {
+    const orig = NUTRITION_DB.find(x=>itemKey(x)===ed.key);
+    if(!orig){ closeIngredientEdit(); return; }
+    data.customIngredients.push(Object.assign({id:uid('ci'), source:'edited', replaces:ed.key,
+      aliases:orig.aliases.slice(), units:Object.assign({}, orig.units||{})}, vals));
+    data.hiddenIngredients[ed.key] = true;
+    movePantryKey(ed.key, 'k:'+nameKey, name);
+  }
+  saveData();
+  closeIngredientEdit();
+  renderIngredientsTab();
+  showToast(name+' updated ✓');
+}
+
+function deleteIngredientFromEdit(){
+  const ed = window._editingIng;
+  if(!ed) return;
+  if(ed.kind==='custom') removeCustomIngredient(ed.id);
+  else removeLibraryIngredient(ed.key);
+}
+
+/* Throw away an edited copy and bring the original library values back */
+function resetIngredientToOriginal(){
+  const ed = window._editingIng;
+  if(!ed || ed.kind!=='custom') return;
+  const rec = data.customIngredients.find(c=>c.id===ed.id);
+  if(!rec || !rec.replaces) return;
+  movePantryKey('k:'+String(rec.name).toLowerCase().trim(), rec.replaces, rec.name);
+  delete data.hiddenIngredients[rec.replaces];
+  data.customIngredients = data.customIngredients.filter(c=>c.id!==ed.id);
+  saveData();
+  closeIngredientEdit();
+  renderIngredientsTab();
+  showToast('Restored the original values');
+}
+
+/* ----- Library list ----- */
+function usageMap(){
+  const map = {};
+  data.goToMeals.forEach(m=>{
+    (Array.isArray(m.ingredients) ? m.ingredients : []).forEach(i=>{
+      if(!i || !i.name) return;
+      const k = pantryKey(i.name);
+      if(!map[k]) map[k] = [];
+      if(map[k].indexOf(m.name)===-1) map[k].push(m.name);
+    });
+  });
+  return map;
+}
+
+function storeLabel(it){
+  const n = itemName(it);
+  return it.store || data.groceryStoreTags[n.toLowerCase()] || guessStore(n);
+}
+
+function renderIngredientLibrary(){
+  const wrap = document.getElementById('ingLibrary');
+  if(!wrap) return;
+  const q = (document.getElementById('ingSearch').value||'').toLowerCase().trim();
+  const usage = usageMap();
+  wrap.innerHTML = '';
+  const rb = document.getElementById('ingRestore');
+  if(rb){
+    rb.innerHTML = '';
+    const replaced = {};
+    data.customIngredients.forEach(c=>{ if(c.replaces) replaced[c.replaces] = true; });
+    const n = Object.keys(data.hiddenIngredients||{}).filter(k=>!replaced[k]).length;
+    if(n){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'suggest-btn';
+      btn.style.margin = '0 0 10px';
+      btn.textContent = '↩ Restore '+n+' removed ingredient'+(n>1?'s':'');
+      btn.onclick = restoreRemovedIngredients;
+      rb.appendChild(btn);
+    }
+  }
+  const items = allIngredients().filter(it=> !q || it.aliases.some(a=>a.indexOf(q)!==-1) || itemName(it).toLowerCase().indexOf(q)!==-1);
+  if(items.length===0){
+    wrap.innerHTML = '<div class="empty">No matches. Add it under "Add your own ingredient".</div>';
+    return;
+  }
+  items.forEach(it=>{
+    const key = itemKey(it);
+    const row = document.createElement('div');
+    row.className = 'lib-item';
+
+    const top = document.createElement('div');
+    top.className = 'lib-top';
+    const label = document.createElement('label');
+    label.className = 'grocery-check-label';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!data.pantry[key];
+    cb.title = 'I have this at home';
+    cb.onchange = function(){
+      setPantryKey(key, itemName(it), cb.checked);
+      renderPantryList();
+    };
+    const nm = document.createElement('span');
+    nm.className = 'lib-name';
+    nm.textContent = itemName(it);
+    label.appendChild(cb);
+    label.appendChild(nm);
+    if(it.custom){
+      const b = document.createElement('span');
+      b.className = 'lib-badge';
+      b.textContent = it.source==='meal' ? 'FROM MY MEALS' : (it.source==='edited' ? 'EDITED' : 'MY LABEL');
+      label.appendChild(b);
+    }
+    top.appendChild(label);
+    const actions = document.createElement('span');
+    actions.className = 'lib-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'lib-edit';
+    edit.title = 'Edit';
+    edit.textContent = '✏️';
+    edit.onclick = function(){ openIngredientEdit(it); };
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'lib-del';
+    del.title = 'Delete';
+    del.textContent = '✕';
+    del.onclick = function(){ if(it.custom) removeCustomIngredient(it.id); else removeLibraryIngredient(key); };
+    actions.appendChild(edit);
+    actions.appendChild(del);
+    top.appendChild(actions);
+    row.appendChild(top);
+
+    const meta = document.createElement('div');
+    meta.className = 'lib-meta';
+    const lines = [];
+    if(it.per100g) lines.push('Per 100 g: '+macroLine(it.per100g));
+    if(it.custom && it.source!=='edited'){
+      lines.push((it.source==='meal' ? 'As entered (' : 'Label serving (')+it.serving.amount+' '+it.serving.unit+(it.servingGrams ? ', '+r1(it.servingGrams)+' g' : '')+'): '+macroLine(it.serving));
+    } else {
+      const units = Object.keys(it.units||{}).filter(u=>u!=='g').slice(0,3).map(u=>'1 '+u+' ≈ '+it.units[u]+' g');
+      if(units.length) lines.push(units.join(' · '));
+    }
+    lines.push('🛒 '+storeLabel(it)+' · '+(usage[key] ? 'Used in: '+usage[key].join(', ') : 'Not in any go-to meal yet'));
+    lines.forEach(t=>{ const d = document.createElement('div'); d.textContent = t; meta.appendChild(d); });
+    row.appendChild(meta);
+    wrap.appendChild(row);
+  });
+}
+
+function renderPantryList(){
+  const wrap = document.getElementById('pantryList');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const keys = Object.keys(data.pantry||{});
+  if(keys.length===0){
+    wrap.innerHTML = '<div class="empty">Nothing here yet. Tick items in the library above, or add one below.</div>';
+    return;
+  }
+  keys.sort((a,b)=>String(data.pantry[a]).localeCompare(String(data.pantry[b]))).forEach(k=>{
+    const chip = document.createElement('span');
+    chip.className = 'pantry-chip';
+    const t = document.createElement('span');
+    t.textContent = data.pantry[k];
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.title = 'Remove from pantry';
+    x.textContent = '✕';
+    x.onclick = function(){
+      delete data.pantry[k];
+      saveData();
+      renderPantryList();
+      renderIngredientLibrary();
+    };
+    chip.appendChild(t);
+    chip.appendChild(x);
+    wrap.appendChild(chip);
+  });
+}
+
+function addPantryItem(ev){
+  ev.preventDefault();
+  const input = document.getElementById('pantryAdd');
+  const name = input.value.trim();
+  if(!name) return false;
+  setPantry(name, true);
+  input.value = '';
+  renderPantryList();
+  renderIngredientLibrary();
+  showToast(name+' added to pantry ✓');
+  return false;
+}
+
+function renderIngredientsTab(){
+  fillUnitSelect('calcUnit','unit');
+  fillUnitSelect('ciUnit','Serving unit');
+  populateIngredientNames();
+  calcUpdate();
+  renderIngredientLibrary();
+  renderPantryList();
+}
 
 /* ---------- Utils ---------- */
 function escapeHtml(str){
@@ -2747,9 +3517,10 @@ function showToast(msg){
 resetIngredientRows();
 resetSetRows();
 document.getElementById('ingredientRows').addEventListener('input', recalcMealTotals);
+document.getElementById('ingredientRows').addEventListener('input', ingRowInput);
+document.getElementById('ingredientRows').addEventListener('change', ingRowInput);
+document.getElementById('ingredientRows').addEventListener('focusout', ingRowFocusOut);
 renderToday();
-renderTip();
-renderFact();
 renderProgress();
 if(window._loadFailed) showCorruptBanner();
 
