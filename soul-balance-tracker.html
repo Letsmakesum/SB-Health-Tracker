@@ -578,7 +578,11 @@
         <input id="fChol" data-opt="ch" type="number" min="0" step="any" inputmode="decimal" placeholder="Cholesterol (mg)">
         <div style="grid-column:1/-1;font-size:.75rem;color:var(--sub);margin-top:2px;">Ingredients (optional) — add each ingredient's amount and macros, and the totals above fill in automatically</div>
         <div id="ingredientRows" style="grid-column:1/-1;"></div>
-        <button type="button" class="add-ingredient-btn" style="grid-column:1/-1;" onclick="addIngredientRow()">+ Add ingredient</button>
+        <div style="grid-column:1/-1;display:flex;gap:8px;">
+          <button type="button" class="add-ingredient-btn" style="flex:1;margin-bottom:0;" onclick="addIngredientRow()">+ Add ingredient</button>
+          <button type="button" class="add-ingredient-btn" style="flex:1;margin-bottom:0;" onclick="scanLabelStart(addIngredientRow(),'camera')">📷 Photo</button>
+          <button type="button" class="add-ingredient-btn" style="flex:1;margin-bottom:0;" onclick="scanLabelStart(addIngredientRow(),'upload')">🖼️ Upload</button>
+        </div>
         <label style="grid-column:1/-1;font-size:.75rem;color:var(--sub);display:flex;align-items:center;gap:6px;">
           <input type="checkbox" id="fSave" style="width:auto;"> Save as go-to meal
         </label>
@@ -806,6 +810,13 @@
     <div class="card">
       <h3>➕ Add your own ingredient</h3>
       <p style="font-size:.78rem;color:var(--sub);margin-top:-6px;">Copy the numbers from a nutrition label (per serving). Add the serving weight in grams so you can use any unit later.</p>
+      <div style="display:flex;gap:8px;margin-bottom:6px;">
+        <button type="button" class="suggest-btn" style="flex:1;margin:0;" onclick="scanLabelStart('ci','camera')">📷 Take photo of label</button>
+        <button type="button" class="suggest-btn" style="flex:1;margin:0;" onclick="scanLabelStart('ci','upload')">🖼️ Upload image</button>
+      </div>
+      <div id="scanStatus" style="display:none;font-size:.78rem;line-height:1.45;margin:4px 0 10px;"></div>
+      <input type="file" id="scanFile" accept="image/*" style="display:none" onchange="scanLabelChosen(event)">
+      <input type="file" id="scanCam" accept="image/*" capture="environment" style="display:none" onchange="scanLabelChosen(event)">
       <form class="entry-form" onsubmit="return addCustomIngredient(event)">
         <input class="full" id="ciName" placeholder="Name (e.g. Kirkland chicken sausage)" required>
         <input id="ciAmount" type="number" min="0" step="any" inputmode="decimal" placeholder="Serving size" required>
@@ -1137,6 +1148,219 @@ function estimateIngredientMacros(btn){
   recalcMealTotals();
   showToast((match.custom ? 'Calculated from your saved label for "' : 'Estimated from reference data for "')+name+'"');
 }
+
+/* ---------- Scan a nutrition label (photo -> text on this device -> fields) ---------- */
+const SCAN_UNIT_MAP = {
+  g:'g', gram:'g', grams:'g', gr:'g', oz:'oz', ounce:'oz', ounces:'oz', lb:'lb', lbs:'lb', pound:'lb', pounds:'lb',
+  cup:'cup', cups:'cup', tbsp:'tbsp', tbs:'tbsp', tablespoon:'tbsp', tablespoons:'tbsp', tsp:'tsp', teaspoon:'tsp', teaspoons:'tsp',
+  ml:'ml', milliliter:'ml', milliliters:'ml', piece:'piece', pieces:'piece', pc:'piece', pcs:'piece',
+  slice:'slice', slices:'slice', scoop:'scoop', scoops:'scoop'
+};
+
+function scanNum(str){
+  if(str===undefined || str===null) return null;
+  const clean = String(str).replace(/[Oo]/g,'0').replace(/[Il|]/g,'1').replace(',', '.');
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+}
+
+function parseServing(line){
+  const out = {};
+  if(!line) return out;
+  let s = line.replace(/[“”"]/g,'').trim();
+  let amt = null, rest = s;
+  let m = s.match(/(\d+)\s+(\d+)\s*\/\s*(\d+)/);
+  if(m){ amt = Number(m[1]) + Number(m[2])/Number(m[3]); rest = s.slice(s.indexOf(m[0])+m[0].length); }
+  else if((m = s.match(/(\d+)\s*\/\s*(\d+)/))){ amt = Number(m[1])/Number(m[2]); rest = s.slice(s.indexOf(m[0])+m[0].length); }
+  else if((m = s.match(/(\d+(?:[.,]\d+)?)/))){ amt = parseFloat(m[1].replace(',','.')); rest = s.slice(s.indexOf(m[0])+m[0].length); }
+  const gm = s.match(/\(\s*(?:about|approx\.?|~)?\s*(\d+(?:[.,]\d+)?)\s*(g|ml)\b/i) || s.match(/(\d+(?:[.,]\d+)?)\s*g\b(?!.*\d+\s*g\b)/i);
+  let grams = gm ? parseFloat(gm[1].replace(',','.')) : 0;
+  if(!grams){ const bad = s.match(/\(\s*(\d{2,3})[9q]\s*\)/); if(bad) grams = Number(bad[1]); }  // "55g" misread as "559"/"55q"
+  const wm = rest.match(/^\s*\(?\s*([A-Za-z.]+)/);
+  const word = wm ? wm[1].toLowerCase().replace(/\.$/,'') : '';
+  const mapped = SCAN_UNIT_MAP[word];
+  if(amt===null){ if(grams){ out.servingAmount = grams; out.servingUnit = 'g'; } return out; }
+  if(mapped){
+    out.servingAmount = Math.round(amt*1000)/1000;
+    out.servingUnit = mapped;
+    if(mapped!=='g' && mapped!=='ml' && mapped!=='oz' && mapped!=='lb' && grams) out.servingGrams = grams;
+    else if((mapped==='oz' || mapped==='lb') && grams) out.servingGrams = grams;
+  } else if(grams){
+    out.servingAmount = grams; out.servingUnit = 'g';
+    out.servingNote = Math.round(amt*1000)/1000+' '+(word||'serving')+' ('+grams+' g)';
+  } else {
+    out.servingAmount = Math.round(amt*1000)/1000; out.servingUnit = 'piece';
+    out.servingNote = Math.round(amt*1000)/1000+' '+(word||'serving');
+  }
+  return out;
+}
+
+function parseNutritionText(text){
+  let t = String(text||'').replace(/\r/g,'\n').replace(/[|_]/g,' ').replace(/[ \t]+/g,' ');
+  const NUM = '([0-9OoIl]{1,4}(?:[.,][0-9]{1,2})?)';
+  const pick = (re)=>{ const m = t.match(re); return m ? scanNum(m[1]) : null; };
+  const res = {};
+  // calories (not "calories from fat")
+  let v = pick(new RegExp('calories(?!\\s*(?:from|fro))\\s*(?:per\\s*serving)?\\s*[:\\-]?\\s*'+NUM,'i'));
+  if(v!==null) res.cal = v;
+  v = pick(new RegExp('total\\s*fat\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i')); if(v!==null) res.f = v;
+  v = pick(new RegExp('total\\s*carb[a-z.]*\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i'));
+  if(v===null) v = pick(new RegExp('carbohydrates?\\s*[:\\-]?\\s*'+NUM+'\\s*g','i'));
+  if(v!==null) res.c = v;
+  v = pick(new RegExp('protein\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i')); if(v!==null) res.p = v;
+  v = pick(new RegExp('fiber\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i')); if(v!==null) res.fi = v;
+  v = pick(new RegExp('total\\s*sugars?\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i'));
+  if(v===null){
+    t.split('\n').some(line=>{
+      if(/added|includes/i.test(line)) return false;
+      const m = line.match(new RegExp('sugars?\\s*[:\\-]?\\s*'+NUM+'\\s*g','i'));
+      if(m){ v = scanNum(m[1]); return true; }
+      return false;
+    });
+  }
+  if(v!==null) res.su = v;
+  v = pick(new RegExp('sodium\\s*[:\\-]?\\s*'+NUM+'\\s*(?:mg|m9|ma)?','i')); if(v!==null) res.na = v;
+  v = pick(new RegExp('cholesterol\\s*[:\\-]?\\s*'+NUM+'\\s*(?:mg|m9|ma)?','i')); if(v!==null) res.ch = v;
+  // serving size (value may sit on the next line)
+  const sm = t.match(/serv(?:ing|\.)?\s*size\s*[:\-]?\s*\n?\s*([^\n]{1,70})/i);
+  if(sm){
+    const sv = parseServing(sm[1]);
+    Object.assign(res, sv);
+  }
+  const macroKeys = ['cal','p','c','f','fi','su','na','ch'];
+  res.found = macroKeys.filter(k=> res[k]!==undefined).length + (res.servingAmount!==undefined ? 1 : 0);
+  // sanity: calories should roughly match 4P + 4C + 9F
+  if(res.cal!==undefined && res.p!==undefined && res.c!==undefined && res.f!==undefined){
+    const est = res.p*4 + res.c*4 + res.f*9;
+    res.mismatch = est>0 ? Math.abs(est-res.cal)/Math.max(est,res.cal) > 0.3 : false;
+  }
+  return res;
+}
+
+let _tessWorker = null;
+window._scanProgress = null;
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve(window.Tesseract);
+  return new Promise((resolve, reject)=>{
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    sc.onload = ()=> resolve(window.Tesseract);
+    sc.onerror = ()=> reject(new Error('load'));
+    document.head.appendChild(sc);
+  });
+}
+async function getScanWorker(){
+  const T = await loadTesseract();
+  if(!_tessWorker){
+    _tessWorker = await T.createWorker('eng', 1, {logger: m=>{ if(window._scanProgress) window._scanProgress(m); }});
+  }
+  return _tessWorker;
+}
+
+/* Downscale, grayscale and stretch contrast so the text reads cleanly */
+async function prepScanImage(file){
+  let bmp;
+  try{ bmp = await createImageBitmap(file); }
+  catch(e){
+    bmp = await new Promise((res, rej)=>{ const im = new Image(); im.onload = ()=>res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+  }
+  const w0 = bmp.width, h0 = bmp.height;
+  const scale = Math.min(2400/Math.max(w0,h0), Math.max(1, 1600/Math.min(w0,h0)));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(w0*scale); cv.height = Math.round(h0*scale);
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  const img = ctx.getImageData(0, 0, cv.width, cv.height);
+  const d = img.data, hist = new Array(256).fill(0);
+  for(let i=0;i<d.length;i+=4){ const g = Math.round(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]); d[i]=d[i+1]=d[i+2]=g; hist[g]++; }
+  const total = d.length/4; let lo=0, hi=255, acc=0;
+  for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>total*0.02){ lo=i; break; } }
+  acc=0; for(let i=255;i>=0;i--){ acc+=hist[i]; if(acc>total*0.02){ hi=i; break; } }
+  const span = Math.max(1, hi-lo);
+  for(let i=0;i<d.length;i+=4){ const g = Math.max(0, Math.min(255, (d[i]-lo)*255/span)); d[i]=d[i+1]=d[i+2]=g; }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
+function setScanStatus(msg, isError){
+  const el = document.getElementById('scanStatus');
+  if(el){ el.textContent = msg; el.style.color = isError ? 'var(--coral)' : 'var(--sub)'; el.style.display = msg ? 'block' : 'none'; }
+  const row = window._scanTarget && window._scanTarget.nodeType ? window._scanTarget.querySelector('.ing-status') : null;
+  if(row) row.textContent = msg;
+}
+
+function scanLabelStart(target, mode){
+  window._scanTarget = target;   // 'ci' (Add ingredient form) or an ingredient row element / button inside one
+  if(target && target.closest) window._scanTarget = target.closest('.ingredient-row');
+  // 'camera' opens the camera directly; otherwise the phone offers camera, photo library or files
+  const f = document.getElementById(mode==='camera' ? 'scanCam' : 'scanFile');
+  f.value = '';
+  f.click();
+}
+
+async function scanLabelChosen(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  const target = window._scanTarget;
+  try{
+    setScanStatus('Preparing photo…');
+    const canvas = await prepScanImage(file);
+    window._scanProgress = m=>{
+      if(m.status==='recognizing text') setScanStatus('Reading label… '+Math.round((m.progress||0)*100)+'%');
+      else if(m.status && m.status.indexOf('load')===0) setScanStatus('Loading the reader (first time only)…');
+    };
+    setScanStatus('Loading the reader (first time only)…');
+    const worker = await getScanWorker();
+    await worker.setParameters({tessedit_pageseg_mode:'6', preserve_interword_spaces:'1'});
+    let r = await worker.recognize(canvas);
+    let res = parseNutritionText(r.data.text);
+    if(res.found < 5){
+      await worker.setParameters({tessedit_pageseg_mode:'3'});
+      r = await worker.recognize(canvas);
+      const alt = parseNutritionText(r.data.text);
+      if(alt.found > res.found) res = alt;
+    }
+    if(res.found===0){
+      setScanStatus('Couldn\'t read a nutrition label. Try again in good light with the label flat and filling the photo.', true);
+      return;
+    }
+    applyScan(res, target);
+  }catch(e){
+    setScanStatus(e && e.message==='load'
+      ? 'Couldn\'t load the reader — you need an internet connection the first time you scan.'
+      : 'Scan failed. Try another photo.', true);
+  }
+}
+
+function applyScan(res, target){
+  const setV = (id, v)=>{ const el = document.getElementById(id); if(el && v!==undefined) el.value = v; };
+  let filled = 0;
+  if(target==='ci'){
+    const map = {ciAmount:res.servingAmount, ciGrams:res.servingGrams, ciCal:res.cal, ciProtein:res.p, ciCarbs:res.c, ciFat:res.f, ciFiber:res.fi, ciSodium:res.na, ciSugar:res.su, ciChol:res.ch};
+    Object.keys(map).forEach(id=>{ if(map[id]!==undefined){ setV(id, map[id]); filled++; } });
+    if(res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1){ document.getElementById('ciUnit').value = res.servingUnit; filled++; }
+  } else if(target && target.querySelector){
+    const q = c=>target.querySelector(c);
+    const map = {'.ing-amount':res.servingAmount, '.ing-cal':res.cal, '.ing-p':res.p, '.ing-c':res.c, '.ing-f':res.f, '.ing-fi':res.fi, '.ing-na':res.na, '.ing-su':res.su, '.ing-ch':res.ch};
+    Object.keys(map).forEach(c=>{ if(map[c]!==undefined){ q(c).value = map[c]; filled++; } });
+    if(res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1){ q('.ing-unit').value = res.servingUnit; filled++; }
+    target.dataset.manual = '1';
+    recalcMealTotals();
+  }
+  let msg = '✓ Filled '+filled+' fields from the photo. Check every number against the label'+(target==='ci' ? ', add a name, then save.' : '.');
+  if(res.servingNote) msg += ' Serving "'+res.servingNote+'" was saved as '+res.servingAmount+' '+res.servingUnit+'.';
+  if(res.mismatch) msg += ' ⚠️ Calories don\'t match the macros — one number may be misread.';
+  const missing = [];
+  if(res.cal===undefined) missing.push('calories');
+  if(res.p===undefined) missing.push('protein');
+  if(res.c===undefined) missing.push('carbs');
+  if(res.f===undefined) missing.push('fat');
+  if(res.servingAmount===undefined) missing.push('serving size');
+  if(missing.length) msg += ' Couldn\'t read: '+missing.join(', ')+'.';
+  setScanStatus(msg, !!res.mismatch);
+  if(target==='ci'){ const n = document.getElementById('ciName'); if(n) n.focus(); }
+}
+
 
 /* Optional trackers (sodium, sugar) */
 function trk(){ return {na: !!(data && data.trackSodium), su: !!(data && data.trackSugar), ch: !!(data && data.trackChol)}; }
@@ -1650,6 +1874,7 @@ function addIngredientRow(prefill){
   row.innerHTML =
     '<div class="ing-row1">'+
       '<input type="text" class="ing-name" data-label="Ingredient" placeholder="Search or type your own" autocomplete="off">'+
+      '<button type="button" class="ing-estimate" onclick="scanLabelStart(this)" title="Scan a nutrition label (camera or photo library)">📷</button>'+
       '<button type="button" class="ing-estimate" onclick="estimateIngredientMacros(this)" title="Estimate macros">≈</button>'+
       '<button type="button" class="ing-remove" onclick="removeIngredientRow(this)">✕</button>'+
     '</div>'+
