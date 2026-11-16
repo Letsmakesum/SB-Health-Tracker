@@ -312,8 +312,22 @@
   .ing-suggest-item:last-child{border-bottom:none;}
   .ingredient-row.needs-amount .ing-amount{border:2px solid var(--yellow) !important;box-shadow:0 0 0 3px rgba(255,200,60,.25);}
   .rv-flag input,.rv-flag select{border:2px solid var(--yellow) !important;background:#3a3216 !important;}
-  .rv-img{max-height:230px;overflow:auto;border:1px solid #2c3968;border-radius:10px;margin-bottom:10px;background:#000;}
-  .rv-img img{display:block;width:170%;max-width:none;}
+  #scanReviewModal{align-items:stretch;}
+  #scanReviewModal .modal{max-width:none;width:100%;height:100%;max-height:100%;border-radius:0;padding:10px 10px 8px;display:flex;flex-direction:column;overflow:hidden;}
+  #scanReviewModal h3{margin:0 0 4px;font-size:1rem;}
+  .rv-wrap{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .rv-left{display:flex;flex-direction:column;min-height:0;}
+  .rv-zoom{display:flex;gap:6px;margin-bottom:4px;align-items:center;font-size:.68rem;color:var(--sub);}
+  .rv-zoom button{background:var(--card2);color:var(--text);border:1px solid #2c3968;border-radius:8px;padding:3px 10px;font-size:.9rem;cursor:pointer;}
+  .rv-img{flex:1;min-height:0;overflow:auto;border:1px solid #2c3968;border-radius:10px;background:#000;-webkit-overflow-scrolling:touch;}
+  .rv-img img{display:block;width:150%;max-width:none;}
+  .rv-right{min-height:0;overflow-y:auto;padding-right:2px;-webkit-overflow-scrolling:touch;}
+  .rv-right .field{margin-bottom:8px;}
+  .rv-right .field label{font-size:.72rem;margin-bottom:3px;}
+  .rv-right .field input,.rv-right .field select{padding:7px 8px;}
+  .rv-pair{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .rv-btns{display:grid;grid-template-columns:1.4fr 1fr;gap:8px;margin-top:8px;}
+  .rv-btns button{margin-top:0 !important;}
   .ing-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px;}
   .ing-chips:empty{display:none;}
   .ing-chip{background:var(--card);border:1px solid #3a4778;color:var(--text);border-radius:10px;padding:5px 9px;font-size:.74rem;line-height:1.25;cursor:pointer;text-align:center;}
@@ -931,29 +945,32 @@
 <div class="modal-bg" id="scanReviewModal">
   <div class="modal">
     <h3>📋 Check the scan</h3>
-    <div class="rv-img"><img id="rvImg" alt="Your photo"></div>
-    <p id="rvNote" style="font-size:.78rem;color:var(--sub);margin:0 0 10px;line-height:1.45;"></p>
-    <div class="row2">
-      <div class="field"><label>Serving size</label><input type="number" id="rvServAmt" min="0" step="any" inputmode="decimal"></div>
-      <div class="field"><label>Unit</label><select id="rvUnit"></select></div>
-      <div class="field"><label>Serving weight (g)</label><input type="number" id="rvServG" min="0" step="any" inputmode="decimal"></div>
+    <p id="rvNote" style="font-size:.72rem;color:var(--sub);margin:0 0 6px;line-height:1.35;"></p>
+    <div class="rv-wrap">
+      <div class="rv-left">
+        <div class="rv-zoom"><span>Photo</span><button type="button" onclick="rvZoom(-40)">−</button><button type="button" onclick="rvZoom(40)">+</button><span>drag to move</span></div>
+        <div class="rv-img"><img id="rvImg" alt="Your photo"></div>
+      </div>
+      <div class="rv-right">
+        <div class="rv-pair">
+          <div class="field"><label>Serving</label><input type="number" id="rvServAmt" min="0" step="any" inputmode="decimal"></div>
+          <div class="field"><label>Unit</label><select id="rvUnit"></select></div>
+        </div>
+        <div class="field"><label>Serving weight (g)</label><input type="number" id="rvServG" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Calories</label><input type="number" id="rvCal" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Protein (g)</label><input type="number" id="rvP" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Carbs (g)</label><input type="number" id="rvC" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Fat (g)</label><input type="number" id="rvF" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Fiber (g)</label><input type="number" id="rvFi" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Sugar (g)</label><input type="number" id="rvSu" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Sodium (mg)</label><input type="number" id="rvNa" min="0" step="any" inputmode="decimal"></div>
+        <div class="field"><label>Cholesterol (mg)</label><input type="number" id="rvCh" min="0" step="any" inputmode="decimal"></div>
+      </div>
     </div>
-    <div class="row2">
-      <div class="field"><label>Calories</label><input type="number" id="rvCal" min="0" step="any" inputmode="decimal"></div>
-      <div class="field"><label>Protein (g)</label><input type="number" id="rvP" min="0" step="any" inputmode="decimal"></div>
-      <div class="field"><label>Carbs (g)</label><input type="number" id="rvC" min="0" step="any" inputmode="decimal"></div>
+    <div class="rv-btns">
+      <button class="save-modal" onclick="confirmScanReview()">Use these values</button>
+      <button class="close-modal" onclick="closeScanReview()">Cancel</button>
     </div>
-    <div class="row2">
-      <div class="field"><label>Fat (g)</label><input type="number" id="rvF" min="0" step="any" inputmode="decimal"></div>
-      <div class="field"><label>Fiber (g)</label><input type="number" id="rvFi" min="0" step="any" inputmode="decimal"></div>
-      <div class="field"><label>Sugar (g)</label><input type="number" id="rvSu" min="0" step="any" inputmode="decimal"></div>
-    </div>
-    <div class="row2b">
-      <div class="field"><label>Sodium (mg)</label><input type="number" id="rvNa" min="0" step="any" inputmode="decimal"></div>
-      <div class="field"><label>Cholesterol (mg)</label><input type="number" id="rvCh" min="0" step="any" inputmode="decimal"></div>
-    </div>
-    <button class="save-modal" onclick="confirmScanReview()">Use these values</button>
-    <button class="close-modal" onclick="closeScanReview()">Cancel</button>
   </div>
 </div>
 
@@ -1249,7 +1266,8 @@ function parseNutritionText(text){
     if(v===null) return false;
     res[key] = v;
     const hasUnit = !!(m[2]);
-    if(isGram && !hasUnit && /^[0-9OoIl]*[0-9Oo]9$/.test(raw) && raw.length>=2){
+    if(isGram && hasUnit) res._expl = (res._expl||0) + 1;   // this value clearly had its "g"
+    if(isGram && !hasUnit && /^[0-9OoIl]+[89]$/.test(raw) && raw.length>=2){
       const a = scanNum(raw.slice(0,-1));
       if(a!==null) res.alt[key] = a;
     }
@@ -1258,8 +1276,8 @@ function parseNutritionText(text){
   grab('cal','calories(?!\\s*(?:from|fro))\\s*(?:per\\s*serving)?',false);
   grab('f','total\\s*fat',true);
   if(!grab('c','total\\s*carb[a-z.]*',true)) grab('c','carbohydrates?',true);
-  grab('p','protein',true);
-  grab('fi','fiber',true);
+  if(!grab('p','protein',true)) grab('p','prot[a-z]{2,5}',true);
+  if(!grab('fi','fiber',true)) grab('fi','fib[a-z]{1,4}',true);
   if(!grab('su','total\\s*sugars?',true)){
     t.split('\n').some(line=>{
       if(/added|includes/i.test(line)) return false;
@@ -1268,8 +1286,8 @@ function parseNutritionText(text){
       return false;
     });
   }
-  grab('na','sodium',false);
-  grab('ch','cholesterol',false);
+  if(!grab('na','sodium',false)) grab('na','sod[a-z]{2,4}',false);
+  if(!grab('ch','cholesterol',false)) grab('ch','chol[a-z]{3,8}',false);
   const sm = t.match(/serv(?:ing|\.)?\s*size\s*[:\-]?\s*\n?\s*([^\n]{1,70})/i);
   if(sm) Object.assign(res, parseServing(sm[1]));
   return finishScan(res);
@@ -1285,6 +1303,14 @@ function scanMismatch(r){
 function finishScan(res){
   res.uncertain = res.uncertain || {};
   const gramKeys = ['f','c','p','fi','su'];
+  // 0) a value ending in 9 with no "g" may really be "<value>g": always flag it, and trust the shorter number
+  //    when the other values on the label clearly showed their "g"
+  gramKeys.forEach(k=>{
+    if(res[k]!==undefined && res.alt && res.alt[k]!==undefined){
+      res.uncertain[k] = true;
+      if((res._expl||0) >= 2) res[k] = res.alt[k];
+    }
+  });
   // 1) implausible values: use the alternate (drop the stray trailing 9)
   gramKeys.forEach(k=>{
     if(res[k]!==undefined && res.alt && res.alt[k]!==undefined && res[k]>150){ res[k] = res.alt[k]; res.uncertain[k] = true; }
@@ -1310,6 +1336,16 @@ function finishScan(res){
       res.uncertain[k] = true;
     }
   });
+  // exactly one of protein/carbs/fat unreadable: estimate it from calories (flagged so you check it)
+  const miss = ['p','c','f'].filter(k=> res[k]===undefined);
+  if(miss.length===1 && res.cal!==undefined && res.cal>0){
+    const k = miss[0];
+    const have = (res.p||0)*4 + (res.c||0)*4 + (res.f||0)*9;
+    const per = k==='f' ? 9 : 4;
+    const est = Math.round((res.cal - have)/per);
+    if(est>=0 && est<=100){ res[k] = est; res.uncertain[k] = true; res.inferred = res.inferred || {}; res.inferred[k] = true; }
+  }
+  delete res._expl;
   const macroKeys = ['cal','p','c','f','fi','su','na','ch'];
   res.found = macroKeys.filter(k=> res[k]!==undefined).length + (res.servingAmount!==undefined ? 1 : 0);
   const err = scanMismatch(res);
@@ -1330,8 +1366,9 @@ function mergeScans(list){
     Object.keys(count).forEach(v=>{ if(count[v] > bestN){ bestN = count[v]; bestV = Number(v); } });
     out[k] = bestV;
     if(Object.keys(count).length>1 && bestN < vals.length) out.uncertain[k] = true;
-    if(list.some(r=>r.uncertain && r.uncertain[k]) && vals.length===1) out.uncertain[k] = true;
+    if(list.some(r=>r.uncertain && r.uncertain[k])) out.uncertain[k] = true;
   });
+  list.forEach(r=>{ if(r.inferred){ out.inferred = out.inferred || {}; Object.keys(r.inferred).forEach(k=>{ out.inferred[k] = true; }); } });
   const sv = list.find(r=> r.servingAmount===out.servingAmount && r.servingUnit);
   if(sv){ out.servingUnit = sv.servingUnit; if(sv.servingGrams) out.servingGrams = sv.servingGrams; if(sv.servingNote) out.servingNote = sv.servingNote; }
   return finishScan(out);
@@ -1451,7 +1488,9 @@ window._scanReview = null;
 
 function showScanReview(res, cv, target){
   window._scanReview = {target:target, res:res};
+  window._rvZoom = 150;
   const img = document.getElementById('rvImg');
+  img.style.width = '150%';
   try{
     const w = Math.min(1000, cv.width), k = w/cv.width;
     const c2 = document.createElement('canvas'); c2.width = w; c2.height = Math.round(cv.height*k);
@@ -1476,12 +1515,21 @@ function showScanReview(res, cv, target){
   document.getElementById('rvServG').value = res.servingGrams || '';
   const flagged = SCAN_REVIEW_FIELDS.filter(f=> unc[f[1]] || res[f[1]]===undefined).length + (res.servingAmount===undefined ? 1 : 0);
   document.getElementById('rvNote').textContent = flagged
-    ? 'Boxes outlined in yellow were unclear or missing — compare them with the photo above and fix anything wrong.'
+    ? 'Boxes outlined in yellow were unclear or missing — compare them with the photo on the left and fix anything wrong.'
     : 'Everything was read cleanly, but still compare with the photo before using it.';
+  if(res.inferred && Object.keys(res.inferred).length){
+    const nm = {p:'Protein', c:'Carbs', f:'Fat'};
+    document.getElementById('rvNote').textContent += ' '+Object.keys(res.inferred).map(k=>nm[k]).join(' and ')+' couldn\'t be read, so it was estimated from the calories — check it against the photo.';
+  }
   if(res.mismatch) document.getElementById('rvNote').textContent += ' ⚠️ Calories don\'t match the macros (4 cal per g of protein/carbs, 9 per g of fat), so one of those is probably misread.';
   document.getElementById('scanReviewModal').classList.add('open');
 }
 
+window._rvZoom = 150;
+function rvZoom(d){
+  window._rvZoom = Math.max(100, Math.min(500, window._rvZoom + d));
+  document.getElementById('rvImg').style.width = window._rvZoom+'%';
+}
 function closeScanReview(){
   document.getElementById('scanReviewModal').classList.remove('open');
   window._scanReview = null;
