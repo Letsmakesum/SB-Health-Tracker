@@ -142,6 +142,15 @@
     font-weight:600;
   }
 
+  /* Collapsible sections */
+  .card>h3.collapsible{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;user-select:none;-webkit-tap-highlight-color:transparent;}
+  .card>h3.collapsible .chev{font-size:.8rem;color:var(--sub);transition:transform .2s;flex:none;}
+  .card.collapsed>h3.collapsible .chev{transform:rotate(-90deg);}
+  .card.collapsed>:not(h3){display:none !important;}
+  .card.collapsed>h3.collapsible{margin-bottom:0;}
+  .collapse-bar{display:flex;gap:8px;justify-content:flex-end;margin:0 0 8px;}
+  .collapse-bar button{background:none;border:1px solid #2c3968;color:var(--sub);border-radius:8px;font-size:.72rem;padding:4px 10px;cursor:pointer;}
+
   /* Always-visible field labels (placeholders vanish while typing) */
   .fl{display:flex;flex-direction:column;gap:3px;min-width:0;grid-column:span 1;}
   .fl.full{grid-column:1/-1;}
@@ -3814,8 +3823,52 @@ function showToast(msg){
 /* ---------- Init ---------- */
 resetIngredientRows();
 resetSetRows();
+
+/* ---------- Collapsible sections (remembered on this device) ---------- */
+function loadCollapsed(){ try{ return JSON.parse(localStorage.getItem('sb_collapsed')||'{}')||{}; }catch(e){ return {}; } }
+function saveCollapsed(m){ try{ localStorage.setItem('sb_collapsed', JSON.stringify(m)); }catch(e){} }
+function cardKey(h){ const t = h.closest('section.view'); return (t && t.id ? t.id : '')+':'+h.firstChild.textContent.trim(); }
+function initCollapsible(){
+  const saved = loadCollapsed();
+  document.querySelectorAll('.card>h3').forEach(h=>{
+    if(h.classList.contains('collapsible') || !h.textContent.trim()) return;
+    const card = h.parentNode;
+    const key = cardKey(h);
+    h.classList.add('collapsible');
+    const chev = document.createElement('span');
+    chev.className = 'chev'; chev.textContent = '▼';
+    h.appendChild(chev);
+    if(saved[key]) card.classList.add('collapsed');
+    h.addEventListener('click', ()=>{
+      card.classList.toggle('collapsed');
+      const m = loadCollapsed();
+      if(card.classList.contains('collapsed')) m[key] = 1; else delete m[key];
+      saveCollapsed(m);
+    });
+  });
+  document.querySelectorAll('section.view').forEach(t=>{
+    if(t.querySelector(':scope > .collapse-bar') || !t.querySelector('.card>h3.collapsible')) return;
+    const bar = document.createElement('div');
+    bar.className = 'collapse-bar';
+    [['Collapse all',true],['Expand all',false]].forEach(([label,c])=>{
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      b.onclick = ()=>{
+        const m = loadCollapsed();
+        t.querySelectorAll('.card>h3.collapsible').forEach(h=>{
+          h.parentNode.classList.toggle('collapsed', c);
+          if(c) m[cardKey(h)] = 1; else delete m[cardKey(h)];
+        });
+        saveCollapsed(m);
+      };
+      bar.appendChild(b);
+    });
+    t.insertBefore(bar, t.firstChild);
+  });
+}
 labelize(document);
 applyTracking();
+initCollapsible();
 document.getElementById('ingredientRows').addEventListener('input', recalcMealTotals);
 document.getElementById('ingredientRows').addEventListener('input', ingRowInput);
 document.getElementById('ingredientRows').addEventListener('change', ingRowInput);
