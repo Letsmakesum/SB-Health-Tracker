@@ -310,6 +310,11 @@
   .ing-suggest{background:var(--card2);border:1px solid #3a4778;border-radius:10px;margin:4px 0;overflow:hidden;}
   .ing-suggest-item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid #2c3a6b;color:var(--text);padding:10px;font-size:.88rem;text-align:left;cursor:pointer;}
   .ing-suggest-item:last-child{border-bottom:none;}
+  .ing-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px;}
+  .ing-chips:empty{display:none;}
+  .ing-chip{background:var(--card);border:1px solid #3a4778;color:var(--text);border-radius:10px;padding:5px 9px;font-size:.74rem;line-height:1.25;cursor:pointer;text-align:center;}
+  .ing-chip small{display:block;color:var(--sub);font-size:.62rem;}
+  .ing-chip.on{border-color:var(--teal);background:#12324a;}
   .ing-suggest-item span{color:var(--sub);font-size:.72rem;white-space:nowrap;}
   .ing-status{font-size:.72rem;color:var(--good);margin:3px 0 5px;line-height:1.35;}
 
@@ -1813,7 +1818,7 @@ function showIngSuggest(row){
     const nm = document.createElement('b');
     nm.textContent = itemName(it)+(it.custom ? ' ★' : '');
     const info = document.createElement('span');
-    info.textContent = Math.round(it.serving.cal)+' cal / '+it.serving.amount+' '+it.serving.unit;
+    info.textContent = Math.round(it.serving.cal)+' cal · serving '+servingText(it);
     b.appendChild(nm); b.appendChild(info);
     b.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
     b.addEventListener('click', function(){ pickIngredient(row, it); });
@@ -1821,23 +1826,53 @@ function showIngSuggest(row){
   });
   box.style.display = 'block';
 }
+/* "1 slice (28 g)" */
+function servingText(it){
+  return it.serving.amount+' '+it.serving.unit+(it.servingGrams && it.serving.unit!=='g' ? ' ('+r1(it.servingGrams)+' g)' : '');
+}
+/* Quick amount choices based on the ingredient's own serving */
+function renderServingChips(row, it){
+  const box = row.querySelector('.ing-chips');
+  if(!box) return;
+  box.innerHTML = '';
+  if(!it) return;
+  const curAmt = Number(row.querySelector('.ing-amount').value)||0;
+  const curUnit = row.querySelector('.ing-unit').value;
+  [[0.5,'½ serving'],[1,'1 serving'],[1.5,'1½ servings'],[2,'2 servings'],[3,'3 servings']].forEach(function(o){
+    const amt = Math.round(it.serving.amount*o[0]*1000)/1000;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ing-chip'+((curUnit===it.serving.unit && Math.abs(curAmt-amt)<0.0005) ? ' on' : '');
+    b.innerHTML = o[1]+'<small>'+amt+' '+it.serving.unit+'</small>';
+    b.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
+    b.addEventListener('click', function(){
+      row.querySelector('.ing-amount').value = amt;
+      row.querySelector('.ing-unit').value = it.serving.unit;
+      row.dataset.manual = '';
+      autoCalcRow(row);
+    });
+    box.appendChild(b);
+  });
+}
 function pickIngredient(row, it){
   row._label = null;   // a library ingredient replaces any scanned label
   row.querySelector('.ing-name').value = itemName(it);
   row.dataset.manual = '';
   const unitSel = row.querySelector('.ing-unit');
-  if(!unitSel.value) unitSel.value = defaultUnitFor(it);
+  const amtEl = row.querySelector('.ing-amount');
+  // start at one serving so you can see what it is; change it to what you actually used
+  unitSel.value = it.serving.unit;
+  amtEl.value = it.serving.amount;
   hideIngSuggest(row);
   autoCalcRow(row);
-  const amt = row.querySelector('.ing-amount');
-  if(amt && amt.focus) amt.focus();
+  if(amtEl && amtEl.focus){ amtEl.focus(); if(amtEl.select) amtEl.select(); }
 }
 /* When an exact library/label ingredient is chosen, macros follow the amount and unit */
 function autoCalcRow(row){
   if(row.dataset.manual==='1') return;
   const name = row.querySelector('.ing-name').value.trim();
   const it = row._label ? labelItem(row._label, name) : exactIngredient(name);
-  if(!it){ setIngStatus(row, ''); return; }
+  if(!it){ setIngStatus(row, ''); renderServingChips(row, null); return; }
   const src = row._label ? 'the scanned label' : 'your ingredient list';
   const amount = row.querySelector('.ing-amount').value;
   const unit = row.querySelector('.ing-unit').value;
@@ -1858,7 +1893,8 @@ function autoCalcRow(row){
   row.querySelector('.ing-na').value = Math.round((r.na||0)*10)/10;
   row.querySelector('.ing-su').value = Math.round((r.su||0)*10)/10;
   row.querySelector('.ing-ch').value = Math.round((r.ch||0)*10)/10;
-  setIngStatus(row, '✓ Macros calculated from '+src+': '+itemName(it));
+  setIngStatus(row, '✓ '+itemName(it)+' — 1 serving = '+servingText(it)+' ('+Math.round(it.serving.cal)+' cal). Macros below are for the amount you entered.');
+  renderServingChips(row, it);
   recalcMealTotals();
 }
 function ingRowInput(e){
@@ -1897,6 +1933,7 @@ function addIngredientRow(prefill){
     '</div>'+
     '<div class="ing-suggest" style="display:none;"></div>'+
     '<div class="ing-status"></div>'+
+    '<div class="ing-chips"></div>'+
     '<div class="ing-row2">'+
       '<input type="number" min="0" step="any" inputmode="decimal" class="ing-amount" placeholder="Amount">'+
       '<select class="ing-unit" data-label="Unit">'+unitOptions+'</select>'+
