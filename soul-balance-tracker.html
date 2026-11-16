@@ -160,7 +160,7 @@
   .ing-row1{align-items:flex-end !important;}
   .ingredient-row .fl>span{font-size:.62rem;text-align:center;}
   /* optional trackers */
-  body:not(.track-na) [data-opt="na"], body:not(.track-su) [data-opt="su"]{display:none !important;}
+  body:not(.track-na) [data-opt="na"], body:not(.track-su) [data-opt="su"], body:not(.track-ch) [data-opt="ch"]{display:none !important;}
   .fill-sodium{background:#7aa2ff;}
   .fill-sugar{background:#ff9ecb;}
   .chkline{display:flex !important;align-items:center;gap:8px;font-size:.85rem !important;color:var(--text) !important;}
@@ -541,12 +541,13 @@
           <div class="bar-track"><div class="bar-fill fill-fiber" id="fiberBar" style="width:0%"></div></div>
         </div>
         <div class="macro-row" data-opt="na">
-          <div class="top"><span>Sodium (limit)</span><span id="sodiumTxt">0 / 0mg</span></div>
-          <div class="bar-track"><div class="bar-fill fill-sodium" id="sodiumBar" style="width:0%"></div></div>
+          <div class="top"><span>Sodium</span><span id="sodiumTxt">0mg</span></div>
+        </div>
+        <div class="macro-row" data-opt="ch">
+          <div class="top"><span>Cholesterol</span><span id="cholTxt">0mg</span></div>
         </div>
         <div class="macro-row" data-opt="su">
-          <div class="top"><span>Sugar (limit)</span><span id="sugarTxt">0 / 0g</span></div>
-          <div class="bar-track"><div class="bar-fill fill-sugar" id="sugarBar" style="width:0%"></div></div>
+          <div class="top"><span>Sugar</span><span id="sugarTxt">0g</span></div>
         </div>
       </div>
     </div>
@@ -574,6 +575,7 @@
         <input id="fFiber" type="number" min="0" step="any" inputmode="decimal" placeholder="Fiber (g)">
         <input id="fSodium" data-opt="na" type="number" min="0" step="any" inputmode="decimal" placeholder="Sodium (mg)">
         <input id="fSugar" data-opt="su" type="number" min="0" step="any" inputmode="decimal" placeholder="Sugar (g)">
+        <input id="fChol" data-opt="ch" type="number" min="0" step="any" inputmode="decimal" placeholder="Cholesterol (mg)">
         <div style="grid-column:1/-1;font-size:.75rem;color:var(--sub);margin-top:2px;">Ingredients (optional) — add each ingredient's amount and macros, and the totals above fill in automatically</div>
         <div id="ingredientRows" style="grid-column:1/-1;"></div>
         <button type="button" class="add-ingredient-btn" style="grid-column:1/-1;" onclick="addIngredientRow()">+ Add ingredient</button>
@@ -813,6 +815,7 @@
         <input id="ciFiber" type="number" min="0" step="any" inputmode="decimal" placeholder="Fiber (g)">
         <input id="ciSodium" data-opt="na" type="number" min="0" step="any" inputmode="decimal" placeholder="Sodium (mg)">
         <input id="ciSugar" data-opt="su" type="number" min="0" step="any" inputmode="decimal" placeholder="Sugar (g)">
+        <input id="ciChol" data-opt="ch" type="number" min="0" step="any" inputmode="decimal" placeholder="Cholesterol (mg)">
         <input id="ciProtein" type="number" min="0" step="any" inputmode="decimal" placeholder="Protein (g)">
         <input id="ciCarbs" type="number" min="0" step="any" inputmode="decimal" placeholder="Carbs (g)">
         <input id="ciFat" type="number" min="0" step="any" inputmode="decimal" placeholder="Fat (g)">
@@ -882,6 +885,7 @@
       <div class="field" data-opt="na"><label>Sodium (mg)</label><input type="number" id="eiSodium" min="0" step="any" inputmode="decimal"></div>
       <div class="field" data-opt="su"><label>Sugar (g)</label><input type="number" id="eiSugar" min="0" step="any" inputmode="decimal"></div>
     </div>
+    <div class="field" data-opt="ch"><label>Cholesterol (mg)</label><input type="number" id="eiChol" min="0" step="any" inputmode="decimal"></div>
     <div class="row2b">
       <div class="field"><label>Protein (g)</label><input type="number" id="eiProtein" min="0" step="any" inputmode="decimal"></div>
       <div class="field"><label>Carbs (g)</label><input type="number" id="eiCarbs" min="0" step="any" inputmode="decimal"></div>
@@ -933,6 +937,7 @@
       <div class="field" data-opt="na"><label>Sodium (mg)</label><input type="number" id="editFSodium" min="0" step="any" inputmode="decimal"></div>
       <div class="field" data-opt="su"><label>Sugar (g)</label><input type="number" id="editFSugar" min="0" step="any" inputmode="decimal"></div>
     </div>
+    <div class="field" data-opt="ch"><label>Cholesterol (mg)</label><input type="number" id="editFChol" min="0" step="any" inputmode="decimal"></div>
     <button class="save-modal" onclick="saveFoodEdit()">Save changes</button>
     <button class="close-modal" onclick="closeFoodEdit()">Cancel</button>
   </div>
@@ -1011,14 +1016,14 @@
     </div>
 
     <div class="field">
-      <label class="chkline"><input type="checkbox" id="setTrackNa" onchange="showTrackGoals()"> Track sodium (optional)</label>
-      <div id="naGoalWrap" style="margin-top:8px;"><label>Daily sodium limit (mg)</label>
-      <input type="number" id="setSodium" min="0" step="any" inputmode="decimal"></div>
+      <label class="chkline"><input type="checkbox" id="setTrackNa"> Track sodium (optional, no goal)</label>
     </div>
     <div class="field">
-      <label class="chkline"><input type="checkbox" id="setTrackSu" onchange="showTrackGoals()"> Track sugar (optional)</label>
-      <div id="suGoalWrap" style="margin-top:8px;"><label>Daily sugar limit (g)</label>
-      <input type="number" id="setSugar" min="0" step="any" inputmode="decimal"></div>
+      <label class="chkline"><input type="checkbox" id="setTrackSu"> Track sugar (optional, no goal)</label>
+    </div>
+
+    <div class="field">
+      <label class="chkline"><input type="checkbox" id="setTrackCh"> Track cholesterol (optional, no goal)</label>
     </div>
 
     <h3 style="margin-top:20px;">🏁 Weight goal</h3>
@@ -1127,20 +1132,18 @@ function estimateIngredientMacros(btn){
   row.querySelector('.ing-fi').value = Math.round(mr.fi*10)/10;
   row.querySelector('.ing-na').value = Math.round((mr.na||0)*10)/10;
   row.querySelector('.ing-su').value = Math.round((mr.su||0)*10)/10;
+  row.querySelector('.ing-ch').value = Math.round((mr.ch||0)*10)/10;
 
   recalcMealTotals();
   showToast((match.custom ? 'Calculated from your saved label for "' : 'Estimated from reference data for "')+name+'"');
 }
 
 /* Optional trackers (sodium, sugar) */
-function trk(){ return {na: !!(data && data.trackSodium), su: !!(data && data.trackSugar)}; }
+function trk(){ return {na: !!(data && data.trackSodium), su: !!(data && data.trackSugar), ch: !!(data && data.trackChol)}; }
 function applyTracking(){
   document.body.classList.toggle('track-na', trk().na);
   document.body.classList.toggle('track-su', trk().su);
-}
-function showTrackGoals(){
-  document.getElementById('naGoalWrap').style.display = document.getElementById('setTrackNa').checked ? 'block' : 'none';
-  document.getElementById('suGoalWrap').style.display = document.getElementById('setTrackSu').checked ? 'block' : 'none';
+  document.body.classList.toggle('track-ch', trk().ch);
 }
 
 /* Put a permanent label above every input so you always know which box you're in */
@@ -1210,6 +1213,7 @@ function defaultData(){
     macroMode: 'percent', // 'percent' or 'grams'
     macroGrams: {p:150,c:200,f:67}, // daily gram goals (used when macroMode is 'grams')
     fiberGoal: 30, // grams per day
+    trackChol: false, // cholesterol (mg), tracked with no goal
     trackSodium: false, sodiumGoal: 2300, // mg per day limit (optional)
     trackSugar: false, sugarGoal: 50, // g per day limit (optional)
     goToMeals: [
@@ -1321,6 +1325,7 @@ function loadDataRaw(){
       macroMode: parsed.macroMode==='grams' ? 'grams' : 'percent',
       macroGrams: Object.assign({p:150,c:200,f:67}, parsed.macroGrams||{}),
       trackSodium: !!parsed.trackSodium,
+      trackChol: !!parsed.trackChol,
       trackSugar: !!parsed.trackSugar,
       sodiumGoal: (parsed.sodiumGoal!==undefined && parsed.sodiumGoal!==null) ? Number(parsed.sodiumGoal)||0 : 2300,
       sugarGoal: (parsed.sugarGoal!==undefined && parsed.sugarGoal!==null) ? Number(parsed.sugarGoal)||0 : 50,
@@ -1466,9 +1471,10 @@ function renderToday(){
     acc.fi += Number(e.fi)||0;
     acc.na += Number(e.na)||0;
     acc.su += Number(e.su)||0;
+    acc.ch += Number(e.ch)||0;
     return acc;
-  }, {cals:0,p:0,c:0,f:0,fi:0,na:0,su:0});
-  ['p','c','f','fi','na','su'].forEach(k=>{ totals[k] = Math.round(totals[k]*10)/10; });
+  }, {cals:0,p:0,c:0,f:0,fi:0,na:0,su:0,ch:0});
+  ['p','c','f','fi','na','su','ch'].forEach(k=>{ totals[k] = Math.round(totals[k]*10)/10; });
 
   const goal = data.goal;
   const pct = Math.max(0, Math.min(1, totals.cals/goal));
@@ -1493,11 +1499,9 @@ function renderToday(){
   const fg = Number(data.fiberGoal)||0;
   document.getElementById('fiberTxt').textContent = totals.fi+' / '+fg+'g';
   document.getElementById('fiberBar').style.width = Math.min(100, fg? totals.fi/fg*100:0)+'%';
-  const nag = Number(data.sodiumGoal)||0, sug = Number(data.sugarGoal)||0;
-  document.getElementById('sodiumTxt').textContent = totals.na+' / '+nag+'mg';
-  document.getElementById('sodiumBar').style.width = Math.min(100, nag? totals.na/nag*100:0)+'%';
-  document.getElementById('sugarTxt').textContent = totals.su+' / '+sug+'g';
-  document.getElementById('sugarBar').style.width = Math.min(100, sug? totals.su/sug*100:0)+'%';
+  document.getElementById('sodiumTxt').textContent = totals.na+'mg';
+  document.getElementById('sugarTxt').textContent = totals.su+'g';
+  document.getElementById('cholTxt').textContent = totals.ch+'mg';
 
   applyTracking();
   renderQuickGrid();
@@ -1612,6 +1616,7 @@ function autoCalcRow(row){
   row.querySelector('.ing-fi').value = Math.round(r.fi*10)/10;
   row.querySelector('.ing-na').value = Math.round((r.na||0)*10)/10;
   row.querySelector('.ing-su').value = Math.round((r.su||0)*10)/10;
+  row.querySelector('.ing-ch').value = Math.round((r.ch||0)*10)/10;
   setIngStatus(row, '✓ Macros calculated from '+src+': '+itemName(it));
   recalcMealTotals();
 }
@@ -1625,7 +1630,7 @@ function ingRowInput(e){
     autoCalcRow(row);
   } else if(t.classList.contains('ing-amount') || t.classList.contains('ing-unit')){
     autoCalcRow(row);
-  } else if(t.classList.contains('ing-cal') || t.classList.contains('ing-p') || t.classList.contains('ing-c') || t.classList.contains('ing-f') || t.classList.contains('ing-fi') || t.classList.contains('ing-na') || t.classList.contains('ing-su')){
+  } else if(t.classList.contains('ing-cal') || t.classList.contains('ing-p') || t.classList.contains('ing-c') || t.classList.contains('ing-f') || t.classList.contains('ing-fi') || t.classList.contains('ing-na') || t.classList.contains('ing-su') || t.classList.contains('ing-ch')){
     row.dataset.manual = '1';
     if(exactIngredient(row.querySelector('.ing-name').value)) setIngStatus(row, 'Edited by hand — tap ≈ to recalculate from the amount');
   }
@@ -1662,6 +1667,7 @@ function addIngredientRow(prefill){
       '<input type="number" min="0" step="any" inputmode="decimal" class="ing-fi" placeholder="Fiber g">'+
       '<input type="number" min="0" step="any" inputmode="decimal" class="ing-na" data-opt="na" placeholder="Sodium mg">'+
       '<input type="number" min="0" step="any" inputmode="decimal" class="ing-su" data-opt="su" placeholder="Sugar g">'+
+      '<input type="number" min="0" step="any" inputmode="decimal" class="ing-ch" data-opt="ch" placeholder="Cholesterol mg">'+
     '</div>';
   container.appendChild(row);
   if(prefill){
@@ -1675,6 +1681,7 @@ function addIngredientRow(prefill){
     row.querySelector('.ing-fi').value = prefill.fi||'';
     row.querySelector('.ing-na').value = prefill.na||'';
     row.querySelector('.ing-su').value = prefill.su||'';
+    row.querySelector('.ing-ch').value = prefill.ch||'';
   }
   labelize(row);
   return row;
@@ -1693,7 +1700,7 @@ function resetIngredientRows(){
 
 function recalcMealTotals(){
   const rows = document.querySelectorAll('#ingredientRows .ingredient-row');
-  let cal=0, p=0, c=0, f=0, fi=0, na=0, su=0, any=false;
+  let cal=0, p=0, c=0, f=0, fi=0, na=0, su=0, ch=0, any=false;
   rows.forEach(r=>{
     const rc = Number(r.querySelector('.ing-cal').value)||0;
     const rp = Number(r.querySelector('.ing-p').value)||0;
@@ -1702,8 +1709,9 @@ function recalcMealTotals(){
     const rfi = Number(r.querySelector('.ing-fi').value)||0;
     const rna = Number(r.querySelector('.ing-na').value)||0;
     const rsu = Number(r.querySelector('.ing-su').value)||0;
-    if(rc||rp||rcarb||rf||rfi||rna||rsu) any = true;
-    cal += rc; p += rp; c += rcarb; f += rf; fi += rfi; na += rna; su += rsu;
+    const rch = Number(r.querySelector('.ing-ch').value)||0;
+    if(rc||rp||rcarb||rf||rfi||rna||rsu||rch) any = true;
+    cal += rc; p += rp; c += rcarb; f += rf; fi += rfi; na += rna; su += rsu; ch += rch;
   });
   if(any){
     document.getElementById('fCals').value = Math.round(cal);
@@ -1714,6 +1722,7 @@ function recalcMealTotals(){
     document.getElementById('fFiber').value = r1(fi);
     document.getElementById('fSodium').value = r1(na);
     document.getElementById('fSugar').value = r1(su);
+    document.getElementById('fChol').value = r1(ch);
   }
 }
 
@@ -1736,7 +1745,8 @@ function collectIngredients(onlyComplete){
     const fi = Number(r.querySelector('.ing-fi').value)||0;
     const na = Number(r.querySelector('.ing-na').value)||0;
     const su = Number(r.querySelector('.ing-su').value)||0;
-    if(name) list.push({name, amount: amountRaw!=='' ? Number(amountRaw) : '', unit, cal, p, c, f, fi, na, su});
+    const ch = Number(r.querySelector('.ing-ch').value)||0;
+    if(name) list.push({name, amount: amountRaw!=='' ? Number(amountRaw) : '', unit, cal, p, c, f, fi, na, su, ch});
   });
   return list;
 }
@@ -1784,6 +1794,7 @@ function openMealDetail(m){
     '<div class="row"><span>Fiber</span><b>'+(m.fi||0)+'g</b></div>'+
     (trk().na ? '<div class="row"><span>Sodium</span><b>'+(m.na||0)+'mg</b></div>' : '')+
     (trk().su ? '<div class="row"><span>Sugar</span><b>'+(m.su||0)+'g</b></div>' : '')+
+    (trk().ch ? '<div class="row"><span>Cholesterol</span><b>'+(m.ch||0)+'mg</b></div>' : '')+
     '<div class="row"><span>Meal type</span><b>'+m.meal+'</b></div>'+
     '</div>'+ingHtml;
   window._activeMealDetail = m;
@@ -1799,7 +1810,7 @@ function confirmAddMealDetail(){
 
 function quickAdd(m){
   const log = getTodayLog();
-  log.push({id:uid('e'), name:m.name, meal:m.meal, cals:Number(m.cals)||0, p:Number(m.p)||0, c:Number(m.c)||0, f:Number(m.f)||0, fi:Number(m.fi)||0, na:Number(m.na)||0, su:Number(m.su)||0, ingredients:m.ingredients||[], time:Date.now()});
+  log.push({id:uid('e'), name:m.name, meal:m.meal, cals:Number(m.cals)||0, p:Number(m.p)||0, c:Number(m.c)||0, f:Number(m.f)||0, fi:Number(m.fi)||0, na:Number(m.na)||0, su:Number(m.su)||0, ch:Number(m.ch)||0, ingredients:m.ingredients||[], time:Date.now()});
   saveData();
   renderToday();
   showToast(m.name+' added ✓');
@@ -1825,7 +1836,7 @@ function renderLog(log){
       const ingList = formatIngredientsList(e.ingredients);
       const ingLine = ingList.length ? '<br>'+escapeHtml(ingList.join(', ')) : '';
       row.innerHTML = '<div><div class="name">'+escapeHtml(e.name)+'</div>'+
-        '<div class="macros">P '+(e.p||0)+'g · C '+(e.c||0)+'g · F '+(e.f||0)+'g · Fiber '+(e.fi||0)+'g'+(trk().na ? ' · Sodium '+(e.na||0)+'mg' : '')+(trk().su ? ' · Sugar '+(e.su||0)+'g' : '')+ingLine+'</div></div>'+
+        '<div class="macros">P '+(e.p||0)+'g · C '+(e.c||0)+'g · F '+(e.f||0)+'g · Fiber '+(e.fi||0)+'g'+(trk().na ? ' · Sodium '+(e.na||0)+'mg' : '')+(trk().su ? ' · Sugar '+(e.su||0)+'g' : '')+(trk().ch ? ' · Chol '+(e.ch||0)+'mg' : '')+ingLine+'</div></div>'+
         '<div class="right"><span class="cals">'+e.cals+' cal</span>'+
         '<button class="del-btn" title="Edit" onclick="openFoodEdit(\''+currentDate+'\',\''+e.id+'\')">✏️</button>'+
         '<button class="del-btn" onclick="deleteEntry(\''+e.id+'\')">✕</button></div>';
@@ -1857,6 +1868,7 @@ function openFoodEdit(date, id){
   document.getElementById('editFFiber').value = e.fi || '';
   document.getElementById('editFSodium').value = e.na || '';
   document.getElementById('editFSugar').value = e.su || '';
+  document.getElementById('editFChol').value = e.ch || '';
   document.getElementById('foodEditModal').classList.add('open');
 }
 
@@ -1881,6 +1893,7 @@ function saveFoodEdit(){
   e.fi = Number(document.getElementById('editFFiber').value)||0;
   e.na = Number(document.getElementById('editFSodium').value)||0;
   e.su = Number(document.getElementById('editFSugar').value)||0;
+  e.ch = Number(document.getElementById('editFChol').value)||0;
   saveData();
   closeFoodEdit();
   renderToday();
@@ -1899,15 +1912,16 @@ function addEntry(ev){
   const fi = Number(document.getElementById('fFiber').value)||0;
   const na = Number(document.getElementById('fSodium').value)||0;
   const su = Number(document.getElementById('fSugar').value)||0;
+  const ch = Number(document.getElementById('fChol').value)||0;
   const ingredients = collectIngredients();
   if(!name || cals<=0) return false;
 
   const newIng = saveNewIngredients(collectIngredients(true));
   const log = getTodayLog();
-  log.push({id:uid('e'), name, meal, cals, p, c, f, fi, na, su, ingredients, time:Date.now()});
+  log.push({id:uid('e'), name, meal, cals, p, c, f, fi, na, su, ch, ingredients, time:Date.now()});
 
   if(document.getElementById('fSave').checked){
-    data.goToMeals.push({id:uid('g'), name, cals, p, c, f, fi, na, su, meal, ingredients});
+    data.goToMeals.push({id:uid('g'), name, cals, p, c, f, fi, na, su, ch, meal, ingredients});
   }
 
   saveData();
@@ -2284,11 +2298,11 @@ function setHistoryRange(n){
 function fmtN(n){ return Number(n).toLocaleString(); }
 function dayInfo(dstr){
   const log = data.logs[dstr] || [];
-  const t = {cals:0, p:0, c:0, f:0, fi:0, na:0, su:0};
+  const t = {cals:0, p:0, c:0, f:0, fi:0, na:0, su:0, ch:0};
   log.forEach(e=>{
-    t.cals += Number(e.cals)||0; t.p += Number(e.p)||0; t.c += Number(e.c)||0; t.f += Number(e.f)||0; t.fi += Number(e.fi)||0; t.na += Number(e.na)||0; t.su += Number(e.su)||0;
+    t.cals += Number(e.cals)||0; t.p += Number(e.p)||0; t.c += Number(e.c)||0; t.f += Number(e.f)||0; t.fi += Number(e.fi)||0; t.na += Number(e.na)||0; t.su += Number(e.su)||0; t.ch += Number(e.ch)||0;
   });
-  ['p','c','f','fi','na','su'].forEach(k=>{ t[k] = Math.round(t[k]*10)/10; });
+  ['p','c','f','fi','na','su','ch'].forEach(k=>{ t[k] = Math.round(t[k]*10)/10; });
   t.cals = Math.round(t.cals);
   t.burn = workoutDayTotal(dstr);
   t.log = log;
@@ -2380,7 +2394,7 @@ function renderHistory(){
     main.appendChild(right);
     row.appendChild(main);
     row.appendChild(histEl('div','h-sub', x.cals||x.log.length
-      ? 'P '+x.p+'g · C '+x.c+'g · F '+x.f+'g · Fiber '+x.fi+'g'+(trk().na ? ' · Na '+x.na+'mg' : '')+(trk().su ? ' · Sugar '+x.su+'g' : '')+(x.burn ? ' · burned '+fmtN(x.burn) : '')
+      ? 'P '+x.p+'g · C '+x.c+'g · F '+x.f+'g · Fiber '+x.fi+'g'+(trk().na ? ' · Na '+x.na+'mg' : '')+(trk().su ? ' · Sugar '+x.su+'g' : '')+(trk().ch ? ' · Chol '+x.ch+'mg' : '')+(x.burn ? ' · burned '+fmtN(x.burn) : '')
       : 'Nothing logged'));
     row.onclick = function(){
       historySelected = x.d;
@@ -2410,14 +2424,16 @@ function renderHistoryDetail(x, goal){
   const fg = Number(data.fiberGoal)||0;
   const bars = histEl('div','macro-bars');
   const hb = [['Protein','fill-protein',x.p,mg.p,'g'],['Carbs','fill-carbs',x.c,mg.c,'g'],['Fat','fill-fat',x.f,mg.f,'g'],['Fiber','fill-fiber',x.fi,fg,'g']];
-  if(trk().na) hb.push(['Sodium (limit)','fill-sodium',x.na,Number(data.sodiumGoal)||0,'mg']);
-  if(trk().su) hb.push(['Sugar (limit)','fill-sugar',x.su,Number(data.sugarGoal)||0,'g']);
+  if(trk().na) hb.push(['Sodium','fill-sodium',x.na,0,'mg']);
+  if(trk().su) hb.push(['Sugar','fill-sugar',x.su,0,'g']);
+  if(trk().ch) hb.push(['Cholesterol','fill-sugar',x.ch,0,'mg']);
   hb.forEach(m=>{
     const row = histEl('div','macro-row');
     const top = histEl('div','top');
     top.appendChild(histEl('span','', m[0]));
-    top.appendChild(histEl('span','', m[2]+' / '+m[3]+m[4]));
+    top.appendChild(histEl('span','', m[3] ? m[2]+' / '+m[3]+m[4] : m[2]+m[4]));
     row.appendChild(top);
+    if(!m[3]){ bars.appendChild(row); return; }
     const track = histEl('div','bar-track');
     const fill = histEl('div','bar-fill '+m[1]);
     fill.style.width = Math.min(100, m[3] ? m[2]/m[3]*100 : 0)+'%';
@@ -2779,7 +2795,8 @@ function scaledMeal(mealId, slotName){
     f: Math.round((Number(i.f)||0)*factor*10)/10,
     fi: Math.round((Number(i.fi)||0)*factor*10)/10,
     na: Math.round((Number(i.na)||0)*factor*10)/10,
-    su: Math.round((Number(i.su)||0)*factor*10)/10
+    su: Math.round((Number(i.su)||0)*factor*10)/10,
+    ch: Math.round((Number(i.ch)||0)*factor*10)/10
   })) : [];
   return {
     name: meal.name,
@@ -2790,6 +2807,7 @@ function scaledMeal(mealId, slotName){
     fi: Math.round((Number(meal.fi)||0)*factor*10)/10,
     na: Math.round((Number(meal.na)||0)*factor*10)/10,
     su: Math.round((Number(meal.su)||0)*factor*10)/10,
+    ch: Math.round((Number(meal.ch)||0)*factor*10)/10,
     ingredients
   };
 }
@@ -3152,9 +3170,7 @@ function openSettings(){
   document.getElementById('setFiber').value = data.fiberGoal;
   document.getElementById('setTrackNa').checked = !!data.trackSodium;
   document.getElementById('setTrackSu').checked = !!data.trackSugar;
-  document.getElementById('setSodium').value = data.sodiumGoal;
-  document.getElementById('setSugar').value = data.sugarGoal;
-  showTrackGoals();
+  document.getElementById('setTrackCh').checked = !!data.trackChol;
   document.getElementById('setStartWeight').value = data.weightGoal.startWeight;
   document.getElementById('setGoalWeight').value = data.weightGoal.goalWeight;
   document.getElementById('setTargetDate').value = data.weightGoal.targetDate;
@@ -3306,8 +3322,7 @@ function saveSettings(){
   data.fiberGoal = Math.max(0, Math.min(100, Number(document.getElementById('setFiber').value)||0));
   data.trackSodium = document.getElementById('setTrackNa').checked;
   data.trackSugar = document.getElementById('setTrackSu').checked;
-  data.sodiumGoal = Math.max(0, Number(document.getElementById('setSodium').value)||0);
-  data.sugarGoal = Math.max(0, Number(document.getElementById('setSugar').value)||0);
+  data.trackChol = document.getElementById('setTrackCh').checked;
 
   data.weightGoal.startWeight = Number(document.getElementById('setStartWeight').value) || data.weightGoal.startWeight;
   data.weightGoal.goalWeight = Number(document.getElementById('setGoalWeight').value) || data.weightGoal.goalWeight;
@@ -3383,12 +3398,12 @@ function customToItem(c){
   const nameKey = String(c.name||'').toLowerCase().trim();
   const item = {custom:true, id:c.id, name:c.name, store:c.store||'', source:c.source||'', replaces:c.replaces||'',
     aliases:[nameKey].concat((Array.isArray(c.aliases) ? c.aliases : []).filter(a=>a!==nameKey)),
-    serving:{amount:amt, unit:unit, cal:Number(c.cal)||0, p:Number(c.p)||0, c:Number(c.c)||0, f:Number(c.f)||0, fi:Number(c.fi)||0, na:Number(c.na)||0, su:Number(c.su)||0}};
+    serving:{amount:amt, unit:unit, cal:Number(c.cal)||0, p:Number(c.p)||0, c:Number(c.c)||0, f:Number(c.f)||0, fi:Number(c.fi)||0, na:Number(c.na)||0, su:Number(c.su)||0, ch:Number(c.ch)||0}};
   let g = Number(c.servingGrams)||0;
   if(!g && UNIVERSAL_UNIT_GRAMS[unit]) g = amt*UNIVERSAL_UNIT_GRAMS[unit];
   if(g>0){
     const k = 100/g;
-    item.per100g = {cal:item.serving.cal*k, p:item.serving.p*k, c:item.serving.c*k, f:item.serving.f*k, fi:item.serving.fi*k, na:item.serving.na*k, su:item.serving.su*k};
+    item.per100g = {cal:item.serving.cal*k, p:item.serving.p*k, c:item.serving.c*k, f:item.serving.f*k, fi:item.serving.fi*k, na:item.serving.na*k, su:item.serving.su*k, ch:item.serving.ch*k};
     item.units = Object.assign({}, c.units||{}); item.units[unit] = g/amt;
     item.servingGrams = g;
   }
@@ -3409,17 +3424,17 @@ function macrosFor(item, unit, amount){
     const g = gramsFor(item, unit, amount);
     if(g!==null){
       const f = g/100;
-      return {cal:item.per100g.cal*f, p:item.per100g.p*f, c:item.per100g.c*f, f:item.per100g.f*f, fi:(item.per100g.fi||0)*f, na:(item.per100g.na||0)*f, su:(item.per100g.su||0)*f};
+      return {cal:item.per100g.cal*f, p:item.per100g.p*f, c:item.per100g.c*f, f:item.per100g.f*f, fi:(item.per100g.fi||0)*f, na:(item.per100g.na||0)*f, su:(item.per100g.su||0)*f, ch:(item.per100g.ch||0)*f};
     }
   }
   if(item.serving && unit===item.serving.unit){
     const f = amount/item.serving.amount;
-    return {cal:item.serving.cal*f, p:item.serving.p*f, c:item.serving.c*f, f:item.serving.f*f, fi:item.serving.fi*f, na:(item.serving.na||0)*f, su:(item.serving.su||0)*f};
+    return {cal:item.serving.cal*f, p:item.serving.p*f, c:item.serving.c*f, f:item.serving.f*f, fi:item.serving.fi*f, na:(item.serving.na||0)*f, su:(item.serving.su||0)*f, ch:(item.serving.ch||0)*f};
   }
   return null;
 }
 function macroLine(m){
-  return Math.round(m.cal)+' cal · P '+r1(m.p)+'g · C '+r1(m.c)+'g · F '+r1(m.f)+'g · Fiber '+r1(m.fi)+'g'+(trk().na ? ' · Sodium '+r1(m.na)+'mg' : '')+(trk().su ? ' · Sugar '+r1(m.su)+'g' : '');
+  return Math.round(m.cal)+' cal · P '+r1(m.p)+'g · C '+r1(m.c)+'g · F '+r1(m.f)+'g · Fiber '+r1(m.fi)+'g'+(trk().na ? ' · Sodium '+r1(m.na)+'mg' : '')+(trk().su ? ' · Sugar '+r1(m.su)+'g' : '')+(trk().ch ? ' · Chol '+r1(m.ch)+'mg' : '');
 }
 
 /* ----- Pantry ----- */
@@ -3477,13 +3492,13 @@ function calcUpdate(){
     return;
   }
   window._calc = {name:name, amount:Number(amount), unit:unit, r:r};
-  box.innerHTML = '<b style="font-size:1.05rem;">'+Math.round(r.cal)+' cal</b><br>P '+r1(r.p)+'g · C '+r1(r.c)+'g · F '+r1(r.f)+'g · Fiber '+r1(r.fi)+'g'+(trk().na ? ' · Sodium '+r1(r.na)+'mg' : '')+(trk().su ? ' · Sugar '+r1(r.su)+'g' : '')+
+  box.innerHTML = '<b style="font-size:1.05rem;">'+Math.round(r.cal)+' cal</b><br>P '+r1(r.p)+'g · C '+r1(r.c)+'g · F '+r1(r.f)+'g · Fiber '+r1(r.fi)+'g'+(trk().na ? ' · Sodium '+r1(r.na)+'mg' : '')+(trk().su ? ' · Sugar '+r1(r.su)+'g' : '')+(trk().ch ? ' · Chol '+r1(r.ch)+'mg' : '')+
     '<br><span style="color:var(--sub);font-size:.75rem;">From '+src+': '+escapeHtml(itemName(m))+'</span>';
 }
 
 function calcIngredient(){
   const c = window._calc;
-  return {name:c.name, amount:c.amount, unit:c.unit, cal:Math.round(c.r.cal), p:r1(c.r.p), c:r1(c.r.c), f:r1(c.r.f), fi:r1(c.r.fi), na:r1(c.r.na), su:r1(c.r.su)};
+  return {name:c.name, amount:c.amount, unit:c.unit, cal:Math.round(c.r.cal), p:r1(c.r.p), c:r1(c.r.c), f:r1(c.r.f), fi:r1(c.r.fi), na:r1(c.r.na), su:r1(c.r.su), ch:r1(c.r.ch)};
 }
 
 function calcLog(){
@@ -3491,7 +3506,7 @@ function calcLog(){
   const ing = calcIngredient();
   const meal = document.getElementById('calcMeal').value;
   const log = getTodayLog();
-  log.push({id:uid('e'), name:ing.amount+' '+ing.unit+' '+ing.name, meal:meal, cals:ing.cal, p:ing.p, c:ing.c, f:ing.f, fi:ing.fi, na:ing.na, su:ing.su, ingredients:[ing], time:Date.now()});
+  log.push({id:uid('e'), name:ing.amount+' '+ing.unit+' '+ing.name, meal:meal, cals:ing.cal, p:ing.p, c:ing.c, f:ing.f, fi:ing.fi, na:ing.na, su:ing.su, ch:ing.ch, ingredients:[ing], time:Date.now()});
   saveData();
   renderToday();
   showToast('Added to '+meal+' ✓');
@@ -3521,10 +3536,10 @@ function saveNewIngredients(list, guess){
     if(!name || exactIngredient(name)) return;
     const amt = Number(i.amount);
     if(!(amt>0) || !i.unit) return;
-    const cal = Number(i.cal)||0, p = Number(i.p)||0, c = Number(i.c)||0, f = Number(i.f)||0, fi = Number(i.fi)||0, na = Number(i.na)||0, su = Number(i.su)||0;
+    const cal = Number(i.cal)||0, p = Number(i.p)||0, c = Number(i.c)||0, f = Number(i.f)||0, fi = Number(i.fi)||0, na = Number(i.na)||0, su = Number(i.su)||0, ch = Number(i.ch)||0;
     if(guess && !(cal>0 && (p+c+f)>0)) return;
     data.customIngredients.push({id:uid('ci'), name:name, servingAmount:amt, servingUnit:i.unit, servingGrams:0,
-      cal:cal, p:p, c:c, f:f, fi:fi, na:na, su:su, store:guessStore(name), source:'meal'});
+      cal:cal, p:p, c:c, f:f, fi:fi, na:na, su:su, ch:ch, store:guessStore(name), source:'meal'});
     added++;
   });
   return added;
@@ -3551,7 +3566,7 @@ function addCustomIngredient(ev){
   if(!(amt>0)){ showToast('Serving size is required'); return false; }
   if(!unit){ showToast('Pick a serving unit'); return false; }
   const rec = {id:uid('ci'), name:name, servingAmount:amt, servingUnit:unit, servingGrams:Number(v('ciGrams'))||0,
-    cal:Number(v('ciCal'))||0, p:Number(v('ciProtein'))||0, c:Number(v('ciCarbs'))||0, f:Number(v('ciFat'))||0, fi:Number(v('ciFiber'))||0, na:Number(v('ciSodium'))||0, su:Number(v('ciSugar'))||0, store:v('ciStore')};
+    cal:Number(v('ciCal'))||0, p:Number(v('ciProtein'))||0, c:Number(v('ciCarbs'))||0, f:Number(v('ciFat'))||0, fi:Number(v('ciFiber'))||0, na:Number(v('ciSodium'))||0, su:Number(v('ciSugar'))||0, ch:Number(v('ciChol'))||0, store:v('ciStore')};
   const key = name.toLowerCase();
   const idx = data.customIngredients.findIndex(c=>String(c.name).toLowerCase()===key);
   if(idx>=0){ rec.id = data.customIngredients[idx].id; data.customIngredients[idx] = rec; }
@@ -3587,7 +3602,7 @@ function openIngredientEdit(it){
   document.getElementById('eiNote').textContent = 'Values are for the serving size below.';
   set('eiName', rec.name);
   set('eiAmount', rec.servingAmount); set('eiUnit', rec.servingUnit); set('eiGrams', rec.servingGrams || '');
-  set('eiCal', rec.cal); set('eiProtein', rec.p); set('eiCarbs', rec.c); set('eiFat', rec.f); set('eiFiber', rec.fi); set('eiSodium', rec.na||''); set('eiSugar', rec.su||'');
+  set('eiCal', rec.cal); set('eiProtein', rec.p); set('eiCarbs', rec.c); set('eiFat', rec.f); set('eiFiber', rec.fi); set('eiSodium', rec.na||''); set('eiSugar', rec.su||''); set('eiChol', rec.ch||'');
   set('eiStore', rec.store || storeLabel(it));
   document.getElementById('ingredientEditModal').classList.add('open');
 }
@@ -3623,7 +3638,7 @@ function saveIngredientEdit(){
   const old = data.customIngredients[idx];
   const oldKey = 'k:'+String(old.name).toLowerCase().trim();
   data.customIngredients[idx] = Object.assign({}, old, {name:name, servingAmount:amt, servingUnit:unit, servingGrams:Number(v('eiGrams'))||0,
-    cal:Number(v('eiCal'))||0, p:Number(v('eiProtein'))||0, c:Number(v('eiCarbs'))||0, f:Number(v('eiFat'))||0, fi:Number(v('eiFiber'))||0, na:Number(v('eiSodium'))||0, su:Number(v('eiSugar'))||0, store:v('eiStore')});
+    cal:Number(v('eiCal'))||0, p:Number(v('eiProtein'))||0, c:Number(v('eiCarbs'))||0, f:Number(v('eiFat'))||0, fi:Number(v('eiFiber'))||0, na:Number(v('eiSodium'))||0, su:Number(v('eiSugar'))||0, ch:Number(v('eiChol'))||0, store:v('eiStore')});
   movePantryKey(oldKey, 'k:'+nameKey, name);
   saveData();
   closeIngredientEdit();
