@@ -311,6 +311,9 @@
   .ing-suggest-item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid #2c3a6b;color:var(--text);padding:10px;font-size:.88rem;text-align:left;cursor:pointer;}
   .ing-suggest-item:last-child{border-bottom:none;}
   .ingredient-row.needs-amount .ing-amount{border:2px solid var(--yellow) !important;box-shadow:0 0 0 3px rgba(255,200,60,.25);}
+  .rv-flag input,.rv-flag select{border:2px solid var(--yellow) !important;background:#3a3216 !important;}
+  .rv-img{max-height:230px;overflow:auto;border:1px solid #2c3968;border-radius:10px;margin-bottom:10px;background:#000;}
+  .rv-img img{display:block;width:170%;max-width:none;}
   .ing-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px;}
   .ing-chips:empty{display:none;}
   .ing-chip{background:var(--card);border:1px solid #3a4778;color:var(--text);border-radius:10px;padding:5px 9px;font-size:.74rem;line-height:1.25;cursor:pointer;text-align:center;}
@@ -924,6 +927,36 @@
   </div>
 </div>
 
+<!-- Review a scanned nutrition label -->
+<div class="modal-bg" id="scanReviewModal">
+  <div class="modal">
+    <h3>📋 Check the scan</h3>
+    <div class="rv-img"><img id="rvImg" alt="Your photo"></div>
+    <p id="rvNote" style="font-size:.78rem;color:var(--sub);margin:0 0 10px;line-height:1.45;"></p>
+    <div class="row2">
+      <div class="field"><label>Serving size</label><input type="number" id="rvServAmt" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Unit</label><select id="rvUnit"></select></div>
+      <div class="field"><label>Serving weight (g)</label><input type="number" id="rvServG" min="0" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Calories</label><input type="number" id="rvCal" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Protein (g)</label><input type="number" id="rvP" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Carbs (g)</label><input type="number" id="rvC" min="0" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Fat (g)</label><input type="number" id="rvF" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Fiber (g)</label><input type="number" id="rvFi" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Sugar (g)</label><input type="number" id="rvSu" min="0" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row2b">
+      <div class="field"><label>Sodium (mg)</label><input type="number" id="rvNa" min="0" step="any" inputmode="decimal"></div>
+      <div class="field"><label>Cholesterol (mg)</label><input type="number" id="rvCh" min="0" step="any" inputmode="decimal"></div>
+    </div>
+    <button class="save-modal" onclick="confirmScanReview()">Use these values</button>
+    <button class="close-modal" onclick="closeScanReview()">Cancel</button>
+  </div>
+</div>
+
 <!-- Edit logged meal modal -->
 <div class="modal-bg" id="foodEditModal">
   <div class="modal">
@@ -1202,46 +1235,106 @@ function parseServing(line){
   return out;
 }
 
+/* Parse one pass of OCR text. Gram values that end in a stray 9 ("8g" read as "89") keep an alternate so validation can choose. */
 function parseNutritionText(text){
   let t = String(text||'').replace(/\r/g,'\n').replace(/[|_]/g,' ').replace(/[ \t]+/g,' ');
   const NUM = '([0-9OoIl]{1,4}(?:[.,][0-9]{1,2})?)';
-  const pick = (re)=>{ const m = t.match(re); return m ? scanNum(m[1]) : null; };
-  const res = {};
-  // calories (not "calories from fat")
-  let v = pick(new RegExp('calories(?!\\s*(?:from|fro))\\s*(?:per\\s*serving)?\\s*[:\\-]?\\s*'+NUM,'i'));
-  if(v!==null) res.cal = v;
-  v = pick(new RegExp('total\\s*fat\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i')); if(v!==null) res.f = v;
-  v = pick(new RegExp('total\\s*carb[a-z.]*\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i'));
-  if(v===null) v = pick(new RegExp('carbohydrates?\\s*[:\\-]?\\s*'+NUM+'\\s*g','i'));
-  if(v!==null) res.c = v;
-  v = pick(new RegExp('protein\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i')); if(v!==null) res.p = v;
-  v = pick(new RegExp('fiber\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i')); if(v!==null) res.fi = v;
-  v = pick(new RegExp('total\\s*sugars?\\s*[:\\-]?\\s*'+NUM+'\\s*g?','i'));
-  if(v===null){
+  const res = {alt:{}};
+  // grab a value after a label; for gram fields remember an alternate if the unit letter was misread as a trailing 9
+  const grab = (key, labelRe, isGram)=>{
+    const m = t.match(new RegExp(labelRe+'\\s*[:\\-]?\\s*'+NUM+'\\s*(g|mg|mcg)?\\b','i')) || t.match(new RegExp(labelRe+'\\s*[:\\-]?\\s*'+NUM,'i'));
+    if(!m) return false;
+    const raw = m[1];
+    const v = scanNum(raw);
+    if(v===null) return false;
+    res[key] = v;
+    const hasUnit = !!(m[2]);
+    if(isGram && !hasUnit && /^[0-9OoIl]*[0-9Oo]9$/.test(raw) && raw.length>=2){
+      const a = scanNum(raw.slice(0,-1));
+      if(a!==null) res.alt[key] = a;
+    }
+    return true;
+  };
+  grab('cal','calories(?!\\s*(?:from|fro))\\s*(?:per\\s*serving)?',false);
+  grab('f','total\\s*fat',true);
+  if(!grab('c','total\\s*carb[a-z.]*',true)) grab('c','carbohydrates?',true);
+  grab('p','protein',true);
+  grab('fi','fiber',true);
+  if(!grab('su','total\\s*sugars?',true)){
     t.split('\n').some(line=>{
       if(/added|includes/i.test(line)) return false;
       const m = line.match(new RegExp('sugars?\\s*[:\\-]?\\s*'+NUM+'\\s*g','i'));
-      if(m){ v = scanNum(m[1]); return true; }
+      if(m){ res.su = scanNum(m[1]); return true; }
       return false;
     });
   }
-  if(v!==null) res.su = v;
-  v = pick(new RegExp('sodium\\s*[:\\-]?\\s*'+NUM+'\\s*(?:mg|m9|ma)?','i')); if(v!==null) res.na = v;
-  v = pick(new RegExp('cholesterol\\s*[:\\-]?\\s*'+NUM+'\\s*(?:mg|m9|ma)?','i')); if(v!==null) res.ch = v;
-  // serving size (value may sit on the next line)
+  grab('na','sodium',false);
+  grab('ch','cholesterol',false);
   const sm = t.match(/serv(?:ing|\.)?\s*size\s*[:\-]?\s*\n?\s*([^\n]{1,70})/i);
-  if(sm){
-    const sv = parseServing(sm[1]);
-    Object.assign(res, sv);
+  if(sm) Object.assign(res, parseServing(sm[1]));
+  return finishScan(res);
+}
+
+function scanMismatch(r){
+  if(r.cal===undefined || r.p===undefined || r.c===undefined || r.f===undefined) return 0;
+  const est = r.p*4 + r.c*4 + r.f*9;
+  return est>0 || r.cal>0 ? Math.abs(est-r.cal)/Math.max(est, r.cal, 1) : 0;
+}
+
+/* Fix likely misreads and flag what still looks doubtful */
+function finishScan(res){
+  res.uncertain = res.uncertain || {};
+  const gramKeys = ['f','c','p','fi','su'];
+  // 1) implausible values: use the alternate (drop the stray trailing 9)
+  gramKeys.forEach(k=>{
+    if(res[k]!==undefined && res.alt && res.alt[k]!==undefined && res[k]>150){ res[k] = res.alt[k]; res.uncertain[k] = true; }
+  });
+  // 2) calories should roughly equal 4P + 4C + 9F: try the alternates and keep the best fit
+  if(res.cal!==undefined && res.p!==undefined && res.c!==undefined && res.f!==undefined && res.alt){
+    const altKeys = ['p','c','f'].filter(k=>res.alt[k]!==undefined);
+    let best = {err: scanMismatch(res), pick: null};
+    for(let mask=1; mask<(1<<altKeys.length); mask++){
+      const trial = {cal:res.cal, p:res.p, c:res.c, f:res.f};
+      altKeys.forEach((k,i)=>{ if(mask & (1<<i)) trial[k] = res.alt[k]; });
+      const err = scanMismatch(trial);
+      if(err < best.err - 0.08) best = {err:err, pick:{mask:mask, trial:trial}};
+    }
+    if(best.pick){
+      altKeys.forEach((k,i)=>{ if(best.pick.mask & (1<<i)){ res[k] = res.alt[k]; res.uncertain[k] = true; } });
+    }
   }
+  // 3) fiber and sugar can't exceed total carbs
+  ['fi','su'].forEach(k=>{
+    if(res[k]!==undefined && res.c!==undefined && res[k]>res.c){
+      if(res.alt && res.alt[k]!==undefined && res.alt[k]<=res.c) res[k] = res.alt[k];
+      res.uncertain[k] = true;
+    }
+  });
   const macroKeys = ['cal','p','c','f','fi','su','na','ch'];
   res.found = macroKeys.filter(k=> res[k]!==undefined).length + (res.servingAmount!==undefined ? 1 : 0);
-  // sanity: calories should roughly match 4P + 4C + 9F
-  if(res.cal!==undefined && res.p!==undefined && res.c!==undefined && res.f!==undefined){
-    const est = res.p*4 + res.c*4 + res.f*9;
-    res.mismatch = est>0 ? Math.abs(est-res.cal)/Math.max(est,res.cal) > 0.3 : false;
-  }
+  const err = scanMismatch(res);
+  res.mismatch = err > 0.3;
+  if(err > 0.18){ ['cal','p','c','f'].forEach(k=>{ if(res[k]!==undefined) res.uncertain[k] = true; }); }
   return res;
+}
+
+/* Combine several passes: per field take the value most passes agree on; disagreement = "check this one" */
+function mergeScans(list){
+  const out = {uncertain:{}, alt:{}};
+  const keys = ['cal','p','c','f','fi','su','na','ch','servingAmount'];
+  keys.forEach(k=>{
+    const vals = list.filter(r=>r[k]!==undefined).map(r=>r[k]);
+    if(!vals.length) return;
+    const count = {}; vals.forEach(v=>{ count[v] = (count[v]||0)+1; });
+    let bestV = vals[0], bestN = 0;
+    Object.keys(count).forEach(v=>{ if(count[v] > bestN){ bestN = count[v]; bestV = Number(v); } });
+    out[k] = bestV;
+    if(Object.keys(count).length>1 && bestN < vals.length) out.uncertain[k] = true;
+    if(list.some(r=>r.uncertain && r.uncertain[k]) && vals.length===1) out.uncertain[k] = true;
+  });
+  const sv = list.find(r=> r.servingAmount===out.servingAmount && r.servingUnit);
+  if(sv){ out.servingUnit = sv.servingUnit; if(sv.servingGrams) out.servingGrams = sv.servingGrams; if(sv.servingNote) out.servingNote = sv.servingNote; }
+  return finishScan(out);
 }
 
 let _tessWorker = null;
@@ -1264,31 +1357,6 @@ async function getScanWorker(){
   return _tessWorker;
 }
 
-/* Downscale, grayscale and stretch contrast so the text reads cleanly */
-async function prepScanImage(file){
-  let bmp;
-  try{ bmp = await createImageBitmap(file); }
-  catch(e){
-    bmp = await new Promise((res, rej)=>{ const im = new Image(); im.onload = ()=>res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  }
-  const w0 = bmp.width, h0 = bmp.height;
-  const scale = Math.min(2400/Math.max(w0,h0), Math.max(1, 1600/Math.min(w0,h0)));
-  const cv = document.createElement('canvas');
-  cv.width = Math.round(w0*scale); cv.height = Math.round(h0*scale);
-  const ctx = cv.getContext('2d');
-  ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
-  const img = ctx.getImageData(0, 0, cv.width, cv.height);
-  const d = img.data, hist = new Array(256).fill(0);
-  for(let i=0;i<d.length;i+=4){ const g = Math.round(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]); d[i]=d[i+1]=d[i+2]=g; hist[g]++; }
-  const total = d.length/4; let lo=0, hi=255, acc=0;
-  for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>total*0.02){ lo=i; break; } }
-  acc=0; for(let i=255;i>=0;i--){ acc+=hist[i]; if(acc>total*0.02){ hi=i; break; } }
-  const span = Math.max(1, hi-lo);
-  for(let i=0;i<d.length;i+=4){ const g = Math.max(0, Math.min(255, (d[i]-lo)*255/span)); d[i]=d[i+1]=d[i+2]=g; }
-  ctx.putImageData(img, 0, 0);
-  return cv;
-}
-
 function setScanStatus(msg, isError){
   const el = document.getElementById('scanStatus');
   if(el){ el.textContent = msg; el.style.color = isError ? 'var(--coral)' : 'var(--sub)'; el.style.display = msg ? 'block' : 'none'; }
@@ -1305,38 +1373,138 @@ function scanLabelStart(target, mode){
   f.click();
 }
 
+/* Decode the photo once, then make cleaned-up copies at different sizes (OCR results differ by size) */
+async function decodeScanPhoto(file){
+  let bmp;
+  try{ bmp = await createImageBitmap(file); }
+  catch(e){
+    bmp = await new Promise((res, rej)=>{ const im = new Image(); im.onload = ()=>res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+  }
+  return bmp;
+}
+function scanCanvasFrom(bmp, minSide){
+  const w0 = bmp.width, h0 = bmp.height;
+  const scale = Math.min(2600/Math.max(w0,h0), Math.max(0.5, minSide/Math.min(w0,h0)));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(w0*scale); cv.height = Math.round(h0*scale);
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  const img = ctx.getImageData(0, 0, cv.width, cv.height);
+  const d = img.data, hist = new Array(256).fill(0);
+  for(let i=0;i<d.length;i+=4){ const g = Math.round(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]); d[i]=d[i+1]=d[i+2]=g; hist[g]++; }
+  const total = d.length/4; let lo=0, hi=255, acc=0;
+  for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>total*0.02){ lo=i; break; } }
+  acc=0; for(let i=255;i>=0;i--){ acc+=hist[i]; if(acc>total*0.02){ hi=i; break; } }
+  const span = Math.max(1, hi-lo);
+  for(let i=0;i<d.length;i+=4){ const g = Math.max(0, Math.min(255, (d[i]-lo)*255/span)); d[i]=d[i+1]=d[i+2]=g; }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
+function scanConfident(r){
+  return r.found>=8 && !r.mismatch && Object.keys(r.uncertain||{}).length===0 && r.cal!==undefined;
+}
+
 async function scanLabelChosen(ev){
   const file = ev.target.files && ev.target.files[0];
   if(!file) return;
   const target = window._scanTarget;
   try{
     setScanStatus('Preparing photo…');
-    const canvas = await prepScanImage(file);
+    const bmp = await decodeScanPhoto(file);
+    let pass = 0, passes = 3;
     window._scanProgress = m=>{
-      if(m.status==='recognizing text') setScanStatus('Reading label… '+Math.round((m.progress||0)*100)+'%');
+      if(m.status==='recognizing text') setScanStatus('Reading label… pass '+pass+' of up to '+passes+' · '+Math.round((m.progress||0)*100)+'%');
       else if(m.status && m.status.indexOf('load')===0) setScanStatus('Loading the reader (first time only)…');
     };
     setScanStatus('Loading the reader (first time only)…');
     const worker = await getScanWorker();
-    await worker.setParameters({tessedit_pageseg_mode:'6', preserve_interword_spaces:'1'});
-    let r = await worker.recognize(canvas);
-    let res = parseNutritionText(r.data.text);
-    if(res.found < 5){
-      await worker.setParameters({tessedit_pageseg_mode:'3'});
-      r = await worker.recognize(canvas);
-      const alt = parseNutritionText(r.data.text);
-      if(alt.found > res.found) res = alt;
+    const plan = [{side:1600, psm:'6'}, {side:2100, psm:'6'}, {side:1300, psm:'3'}];
+    const results = [];
+    let merged = null, preview = null;
+    for(const step of plan){
+      pass++;
+      const cv = scanCanvasFrom(bmp, step.side);
+      if(!preview) preview = cv;
+      await worker.setParameters({tessedit_pageseg_mode:step.psm, preserve_interword_spaces:'1', user_defined_dpi:'300'});
+      const r = await worker.recognize(cv);
+      results.push(parseNutritionText(r.data.text));
+      merged = results.length===1 ? results[0] : mergeScans(results);
+      if(scanConfident(merged) && results.length>=1 && (results.length>=2 || merged.found>=9)) break;
     }
-    if(res.found===0){
+    if(!merged || merged.found===0){
       setScanStatus('Couldn\'t read a nutrition label. Try again in good light with the label flat and filling the photo.', true);
       return;
     }
-    applyScan(res, target);
+    setScanStatus('');
+    showScanReview(merged, preview, target);
   }catch(e){
     setScanStatus(e && e.message==='load'
       ? 'Couldn\'t load the reader — you need an internet connection the first time you scan.'
       : 'Scan failed. Try another photo.', true);
   }
+}
+
+/* ---------- Review screen: photo next to the values so you can fix anything misread ---------- */
+const SCAN_REVIEW_FIELDS = [['rvCal','cal'],['rvP','p'],['rvC','c'],['rvF','f'],['rvFi','fi'],['rvSu','su'],['rvNa','na'],['rvCh','ch']];
+window._scanReview = null;
+
+function showScanReview(res, cv, target){
+  window._scanReview = {target:target, res:res};
+  const img = document.getElementById('rvImg');
+  try{
+    const w = Math.min(1000, cv.width), k = w/cv.width;
+    const c2 = document.createElement('canvas'); c2.width = w; c2.height = Math.round(cv.height*k);
+    c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height);
+    img.src = c2.toDataURL('image/jpeg', 0.75);
+  }catch(e){ img.removeAttribute('src'); }
+  const sel = document.getElementById('rvUnit');
+  if(!sel.options.length){
+    INGREDIENT_UNITS.forEach(u=>{ const o = document.createElement('option'); o.value = u; o.textContent = u; sel.appendChild(o); });
+  }
+  const unc = res.uncertain || {};
+  const setF = (id, key)=>{
+    const el = document.getElementById(id);
+    el.value = res[key]!==undefined ? res[key] : '';
+    const box = el.closest('.field');
+    box.classList.toggle('rv-flag', !!unc[key] || res[key]===undefined);
+  };
+  SCAN_REVIEW_FIELDS.forEach(f=> setF(f[0], f[1]));
+  document.getElementById('rvServAmt').value = res.servingAmount!==undefined ? res.servingAmount : '';
+  document.getElementById('rvServAmt').closest('.field').classList.toggle('rv-flag', res.servingAmount===undefined || !!unc.servingAmount);
+  sel.value = res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1 ? res.servingUnit : 'serving';
+  document.getElementById('rvServG').value = res.servingGrams || '';
+  const flagged = SCAN_REVIEW_FIELDS.filter(f=> unc[f[1]] || res[f[1]]===undefined).length + (res.servingAmount===undefined ? 1 : 0);
+  document.getElementById('rvNote').textContent = flagged
+    ? 'Boxes outlined in yellow were unclear or missing — compare them with the photo above and fix anything wrong.'
+    : 'Everything was read cleanly, but still compare with the photo before using it.';
+  if(res.mismatch) document.getElementById('rvNote').textContent += ' ⚠️ Calories don\'t match the macros (4 cal per g of protein/carbs, 9 per g of fat), so one of those is probably misread.';
+  document.getElementById('scanReviewModal').classList.add('open');
+}
+
+function closeScanReview(){
+  document.getElementById('scanReviewModal').classList.remove('open');
+  window._scanReview = null;
+  setScanStatus('');
+}
+
+function confirmScanReview(){
+  const st = window._scanReview;
+  if(!st) return;
+  const num = id=>{ const v = document.getElementById(id).value.trim(); return v==='' ? undefined : (Number(v)||0); };
+  const res = {};
+  SCAN_REVIEW_FIELDS.forEach(f=>{ const v = num(f[0]); if(v!==undefined) res[f[1]] = v; });
+  const amt = num('rvServAmt');
+  if(amt!==undefined && amt>0){
+    res.servingAmount = amt;
+    res.servingUnit = document.getElementById('rvUnit').value;
+    const g = num('rvServG'); if(g) res.servingGrams = g;
+  }
+  const err = scanMismatch(res);
+  res.mismatch = err > 0.3;
+  const target = st.target;
+  closeScanReview();
+  applyScan(res, target);
 }
 
 function applyScan(res, target){
