@@ -1116,6 +1116,7 @@ function gramsFor(item, unit, amount){
 function estimateIngredientMacros(btn){
   const row = btn.closest('.ingredient-row');
   row.dataset.manual = '';
+  if(row._label){ autoCalcRow(row); return; }
   const name = row.querySelector('.ing-name').value.trim();
   const amount = row.querySelector('.ing-amount').value;
   const unit = row.querySelector('.ing-unit').value;
@@ -1341,6 +1342,20 @@ function applyScan(res, target){
     if(res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1){ document.getElementById('ciUnit').value = res.servingUnit; filled++; }
   } else if(target && target.querySelector){
     const q = c=>target.querySelector(c);
+    if(res.servingAmount!==undefined && res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1 && res.cal!==undefined){
+      // keep the label as a per-serving reference so the amount you enter scales the macros
+      target._label = {servingAmount:res.servingAmount, servingUnit:res.servingUnit, servingGrams:res.servingGrams||0,
+        cal:res.cal||0, p:res.p||0, c:res.c||0, f:res.f||0, fi:res.fi||0, na:res.na||0, su:res.su||0, ch:res.ch||0};
+      q('.ing-amount').value = res.servingAmount;
+      q('.ing-unit').value = res.servingUnit;
+      target.dataset.manual = '';
+      autoCalcRow(target);
+      filled = 10;
+      const lblTxt = res.servingAmount+' '+res.servingUnit+(res.servingGrams ? ' ('+res.servingGrams+' g)' : '');
+      setScanStatus('✓ Label read — it\'s per '+lblTxt+'. Change the amount to how much you used and the macros scale automatically. Check the numbers against the label.'+(res.mismatch ? ' ⚠️ Calories don\'t match the macros — one number may be misread.' : ''), !!res.mismatch);
+      recalcMealTotals();
+      return;
+    }
     const map = {'.ing-amount':res.servingAmount, '.ing-cal':res.cal, '.ing-p':res.p, '.ing-c':res.c, '.ing-f':res.f, '.ing-fi':res.fi, '.ing-na':res.na, '.ing-su':res.su, '.ing-ch':res.ch};
     Object.keys(map).forEach(c=>{ if(map[c]!==undefined){ q(c).value = map[c]; filled++; } });
     if(res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1){ q('.ing-unit').value = res.servingUnit; filled++; }
@@ -1800,12 +1815,14 @@ function showIngSuggest(row){
     const info = document.createElement('span');
     info.textContent = Math.round(it.serving.cal)+' cal / '+it.serving.amount+' '+it.serving.unit;
     b.appendChild(nm); b.appendChild(info);
+    b.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
     b.addEventListener('click', function(){ pickIngredient(row, it); });
     box.appendChild(b);
   });
   box.style.display = 'block';
 }
 function pickIngredient(row, it){
+  row._label = null;   // a library ingredient replaces any scanned label
   row.querySelector('.ing-name').value = itemName(it);
   row.dataset.manual = '';
   const unitSel = row.querySelector('.ing-unit');
@@ -1819,9 +1836,9 @@ function pickIngredient(row, it){
 function autoCalcRow(row){
   if(row.dataset.manual==='1') return;
   const name = row.querySelector('.ing-name').value.trim();
-  const it = exactIngredient(name);
+  const it = row._label ? labelItem(row._label, name) : exactIngredient(name);
   if(!it){ setIngStatus(row, ''); return; }
-  const src = 'your ingredient list';
+  const src = row._label ? 'the scanned label' : 'your ingredient list';
   const amount = row.querySelector('.ing-amount').value;
   const unit = row.querySelector('.ing-unit').value;
   if(!(Number(amount)>0)){ setIngStatus(row, '✓ '+itemName(it)+' ('+src+') — type the amount you\'re using'); return; }
@@ -1829,7 +1846,7 @@ function autoCalcRow(row){
   const r = macrosFor(it, unit, amount);
   if(!r){
     setIngStatus(row, it.custom
-      ? 'Your label is per '+it.serving.amount+' '+it.serving.unit+' — use that unit, or add its weight in grams on the Ingredients tab'
+      ? 'The label is per '+it.serving.amount+' '+it.serving.unit+' — use that unit'+(row._label ? ', or grams if the label shows a weight' : ', or add its weight in grams on the Ingredients tab')
       : 'No '+unit+' conversion for '+itemName(it)+' — try g, oz or lb', true);
     return;
   }
@@ -1850,7 +1867,7 @@ function ingRowInput(e){
   if(!row) return;
   if(t.classList.contains('ing-name')){
     row.dataset.manual = '';
-    showIngSuggest(row);
+    if(e.type!=='change') showIngSuggest(row);   // a blur-triggered 'change' must not redraw the list under your finger
     autoCalcRow(row);
   } else if(t.classList.contains('ing-amount') || t.classList.contains('ing-unit')){
     autoCalcRow(row);
@@ -1862,7 +1879,7 @@ function ingRowInput(e){
 function ingRowFocusOut(e){
   const row = e.target.closest && e.target.closest('.ingredient-row');
   if(!row || !e.target.classList.contains('ing-name')) return;
-  setTimeout(function(){ hideIngSuggest(row); }, 250);
+  setTimeout(function(){ hideIngSuggest(row); }, 600);
 }
 
 /* ---------- Ingredient row builder (Log food form) ---------- */
@@ -1971,7 +1988,9 @@ function collectIngredients(onlyComplete){
     const na = Number(r.querySelector('.ing-na').value)||0;
     const su = Number(r.querySelector('.ing-su').value)||0;
     const ch = Number(r.querySelector('.ing-ch').value)||0;
-    if(name) list.push({name, amount: amountRaw!=='' ? Number(amountRaw) : '', unit, cal, p, c, f, fi, na, su, ch});
+    const item = {name, amount: amountRaw!=='' ? Number(amountRaw) : '', unit, cal, p, c, f, fi, na, su, ch};
+    if(onlyComplete && r._label) item.ref = r._label;
+    if(name) list.push(item);
   });
   return list;
 }
@@ -3634,6 +3653,11 @@ function customToItem(c){
   }
   return item;
 }
+/* A scanned label held on an ingredient row: scales to whatever amount you enter */
+function labelItem(l, name){
+  return customToItem({id:'label', name:name||'Scanned label', servingAmount:l.servingAmount, servingUnit:l.servingUnit, servingGrams:l.servingGrams||0,
+    cal:l.cal, p:l.p, c:l.c, f:l.f, fi:l.fi, na:l.na, su:l.su, ch:l.ch});
+}
 function allIngredients(){
   const src = window._migrating || data;
   return (src.customIngredients||[]).map(customToItem);
@@ -3759,11 +3783,13 @@ function saveNewIngredients(list, guess){
     if(!i || !i.name) return;
     const name = String(i.name).trim();
     if(!name || exactIngredient(name)) return;
-    const amt = Number(i.amount);
-    if(!(amt>0) || !i.unit) return;
-    const cal = Number(i.cal)||0, p = Number(i.p)||0, c = Number(i.c)||0, f = Number(i.f)||0, fi = Number(i.fi)||0, na = Number(i.na)||0, su = Number(i.su)||0, ch = Number(i.ch)||0;
+    const sv = i.ref || i;   // a scanned label is saved as printed (per serving), not as the amount used
+    const amt = Number(i.ref ? sv.servingAmount : i.amount);
+    const unit = i.ref ? sv.servingUnit : i.unit;
+    if(!(amt>0) || !unit) return;
+    const cal = Number(sv.cal)||0, p = Number(sv.p)||0, c = Number(sv.c)||0, f = Number(sv.f)||0, fi = Number(sv.fi)||0, na = Number(sv.na)||0, su = Number(sv.su)||0, ch = Number(sv.ch)||0;
     if(guess && !(cal>0 && (p+c+f)>0)) return;
-    data.customIngredients.push({id:uid('ci'), name:name, servingAmount:amt, servingUnit:i.unit, servingGrams:0,
+    data.customIngredients.push({id:uid('ci'), name:name, servingAmount:amt, servingUnit:unit, servingGrams:i.ref ? (Number(i.ref.servingGrams)||0) : 0,
       cal:cal, p:p, c:c, f:f, fi:fi, na:na, su:su, ch:ch, store:guessStore(name), source:'meal'});
     added++;
   });
