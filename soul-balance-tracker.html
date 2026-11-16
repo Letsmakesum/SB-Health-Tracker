@@ -310,6 +310,7 @@
   .ing-suggest{background:var(--card2);border:1px solid #3a4778;border-radius:10px;margin:4px 0;overflow:hidden;}
   .ing-suggest-item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid #2c3a6b;color:var(--text);padding:10px;font-size:.88rem;text-align:left;cursor:pointer;}
   .ing-suggest-item:last-child{border-bottom:none;}
+  .ingredient-row.needs-amount .ing-amount{border:2px solid var(--yellow) !important;box-shadow:0 0 0 3px rgba(255,200,60,.25);}
   .ing-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px;}
   .ing-chips:empty{display:none;}
   .ing-chip{background:var(--card);border:1px solid #3a4778;color:var(--text);border-radius:10px;padding:5px 9px;font-size:.74rem;line-height:1.25;cursor:pointer;text-align:center;}
@@ -1084,7 +1085,7 @@ const STORE_KEY = 'soulBalanceTracker_v2';
 const ACTIVITY_MULT = {sedentary:13, light:14, moderate:15, active:17};
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const PLAN_SLOTS = ['Breakfast','Lunch','Dinner'];
-const INGREDIENT_UNITS = ['g','oz','lb','cup','tbsp','tsp','ml','piece','slice','scoop'];
+const INGREDIENT_UNITS = ['g','oz','lb','cup','tbsp','tsp','ml','piece','slice','scoop','serving'];
 
 /* ---------- Ingredient calculator ----------
    There is no built-in food list: every ingredient is one you entered (from a label or a meal).
@@ -1160,7 +1161,7 @@ const SCAN_UNIT_MAP = {
   g:'g', gram:'g', grams:'g', gr:'g', oz:'oz', ounce:'oz', ounces:'oz', lb:'lb', lbs:'lb', pound:'lb', pounds:'lb',
   cup:'cup', cups:'cup', tbsp:'tbsp', tbs:'tbsp', tablespoon:'tbsp', tablespoons:'tbsp', tsp:'tsp', teaspoon:'tsp', teaspoons:'tsp',
   ml:'ml', milliliter:'ml', milliliters:'ml', piece:'piece', pieces:'piece', pc:'piece', pcs:'piece',
-  slice:'slice', slices:'slice', scoop:'scoop', scoops:'scoop'
+  slice:'slice', slices:'slice', scoop:'scoop', scoops:'scoop', serving:'serving', servings:'serving'
 };
 
 function scanNum(str){
@@ -1347,17 +1348,20 @@ function applyScan(res, target){
     if(res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1){ document.getElementById('ciUnit').value = res.servingUnit; filled++; }
   } else if(target && target.querySelector){
     const q = c=>target.querySelector(c);
-    if(res.servingAmount!==undefined && res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1 && res.cal!==undefined){
+    if(res.cal!==undefined){
       // keep the label as a per-serving reference so the amount you enter scales the macros
-      target._label = {servingAmount:res.servingAmount, servingUnit:res.servingUnit, servingGrams:res.servingGrams||0,
-        cal:res.cal||0, p:res.p||0, c:res.c||0, f:res.f||0, fi:res.fi||0, na:res.na||0, su:res.su||0, ch:res.ch||0};
-      q('.ing-amount').value = res.servingAmount;
-      q('.ing-unit').value = res.servingUnit;
+      const noServing = !(res.servingAmount!==undefined && res.servingUnit && INGREDIENT_UNITS.indexOf(res.servingUnit)!==-1);
+      const lab = noServing ? {servingAmount:1, servingUnit:'serving', servingGrams:0} : {servingAmount:res.servingAmount, servingUnit:res.servingUnit, servingGrams:res.servingGrams||0};
+      target._label = Object.assign(lab, {cal:res.cal||0, p:res.p||0, c:res.c||0, f:res.f||0, fi:res.fi||0, na:res.na||0, su:res.su||0, ch:res.ch||0});
+      q('.ing-amount').value = lab.servingAmount;
+      q('.ing-unit').value = lab.servingUnit;
       target.dataset.manual = '';
       autoCalcRow(target);
-      filled = 10;
-      const lblTxt = res.servingAmount+' '+res.servingUnit+(res.servingGrams ? ' ('+res.servingGrams+' g)' : '');
-      setScanStatus('✓ Label read — it\'s per '+lblTxt+'. Change the amount to how much you used and the macros scale automatically. Check the numbers against the label.'+(res.mismatch ? ' ⚠️ Calories don\'t match the macros — one number may be misread.' : ''), !!res.mismatch);
+      const lblTxt = noServing ? '1 serving (the serving size line wasn\'t readable)' : lab.servingAmount+' '+lab.servingUnit+(lab.servingGrams ? ' ('+lab.servingGrams+' g)' : '');
+      setScanStatus('✓ Label read — the numbers shown are for '+lblTxt+'. HOW MUCH DID YOU USE? Type the amount below or tap a choice, and the macros scale.'+(noServing ? ' (Use "serving" as the unit: 2 = two servings.)' : '')+' Check the numbers against the label.'+(res.mismatch ? ' ⚠️ Calories don\'t match the macros — one number may be misread.' : ''), !!res.mismatch);
+      target.classList.add('needs-amount');
+      const amtEl = q ? target.querySelector('.ing-amount') : null;
+      if(amtEl){ amtEl.addEventListener('input', function f(){ target.classList.remove('needs-amount'); amtEl.removeEventListener('input', f); }); if(amtEl.focus){ amtEl.focus(); if(amtEl.select) amtEl.select(); } }
       recalcMealTotals();
       return;
     }
