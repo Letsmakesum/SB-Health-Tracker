@@ -101,8 +101,21 @@
   .fh-day .entry{padding:6px 0;}
   #view-wplan input,#view-wplan select,#wpSessionCard input,#wpSessionCard select{background:var(--card2);border:1px solid #2c3968;border-radius:10px;padding:9px 10px;color:var(--text);font-size:16px;box-sizing:border-box;}
   #view-wplan input[type=date]{min-width:0;}
-  #view-wplan button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.c),#wpSessionCard button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.wp-chip){width:100%;}
+  #view-wplan .card button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.c),#wpSessionCard button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.wp-chip){width:100%;}
   .wp-note{font-size:.82rem;margin:0 0 10px;}
+  .wprow .wp-delset{flex:none;width:34px;height:34px;font-size:.9rem;}
+  #view-wplan .card button:not([class]),#wpSessionCard button:not([class]){padding:11px;border:none;border-radius:12px;background:linear-gradient(120deg,var(--teal),var(--good));color:#04302a;font-weight:700;cursor:pointer;font-size:.9rem;}
+  #view-wplan.unchosen > .card:not(#wpImportCard){display:none;}
+  .wp-know{margin:0 0 10px;}
+  .wp-know summary{cursor:pointer;color:var(--teal);font-weight:700;font-size:.85rem;padding:6px 0;list-style:none;}
+  .wp-know summary::-webkit-details-marker{display:none;}
+  .wp-know ul{margin:6px 0 0;padding-left:18px;font-size:.76rem;color:var(--sub);line-height:1.5;}
+  .wp-prompt{white-space:pre-wrap;word-break:break-word;background:#1c2750;border-radius:10px;padding:10px;font-size:.72rem;color:var(--text);margin:6px 0 8px;max-height:220px;overflow:auto;font-family:ui-monospace,Menlo,monospace;}
+  .wp-know li{margin-bottom:3px;} .wp-know b{color:var(--text);}
+  .wp-filebtn{display:block;text-align:center;cursor:pointer;padding:11px;box-sizing:border-box;}
+  .wp-swapped{font-size:.74rem;color:var(--yellow);margin-top:2px;}
+  .wp-swap{background:#1c2750;border-radius:12px;padding:10px;margin:6px 0;}
+  .wp-swap input:not([type=checkbox]){width:100%;margin-top:6px;}
   .wp-lbl{display:block;font-size:.72rem;color:var(--sub);}
   .wp-lbl select{display:block;width:100%;margin-top:3px;}
   .wp-order{font-size:.8rem;margin:10px 0 4px;color:var(--sub);}
@@ -1027,6 +1040,23 @@
     <div class="card" id="wpRunCard">
       <h3>🏃 Running build-up</h3>
       <div id="wpRun"></div>
+    </div>
+    <div class="card" id="wpExportCard">
+      <h3>📤 Export for Claude</h3>
+      <p style="font-size:.75rem;color:var(--sub);margin-top:-6px;">Get your training log as a file or copied text, then paste it into Claude for analysis of progress, volume, plateaus and next steps.</p>
+      <div class="wp-grid2">
+        <label>Range<select id="exRange"><option value="all">All time</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option><option value="12">Last 12 weeks</option></select></label>
+        <div>
+          <label class="wp-chk" style="margin-top:18px;"><input type="checkbox" id="exWeight" checked> Body weight</label>
+          <label class="wp-chk" style="margin-top:8px;"><input type="checkbox" id="exNutri" checked> Daily nutrition</label>
+        </div>
+      </div>
+      <div class="wp-btns" style="margin-top:12px;"><button type="button" onclick="wpExportCopy()">📋 Copy text</button><button type="button" class="suggest-btn" onclick="wpExportDownload('md')">⬇️ Download .md</button></div>
+      <button type="button" class="suggest-btn" style="margin-top:8px;" onclick="wpExportDownload('csv')">⬇️ Download .csv (one row per set)</button>
+    </div>
+    <div class="card" id="wpImportCard">
+      <h3>📥 Upload your own plan</h3>
+      <div id="wpImport"></div>
     </div>
     <div class="card" id="wpEditCard">
       <h3>📋 Your plan</h3>
@@ -2056,7 +2086,7 @@ function buildWorkoutPlan(){
   const B = (name,sets,reps,start,notes)=>({id:uid('px'),kind:'bw',grp:wpGuessGrp(name),name,sets,reps,start:String(start==null?'':start),notes:notes||''});
   const C = (name,dur,pace,notes)=>({id:uid('px'),kind:'cardio',grp:'cardio',name,sets:0,dur,reps:pace||'',start:'',notes:notes||''});
   return {
-    ver:3, startDate:null, weeks:4,
+    ver:3, name:"Angel's Cut", goal:'cut fat, keep muscle, grow biceps, lean athletic look', startDate:null, weeks:4,
     tips:[
       'Every set: stop with 1–3 reps left in the tank. Beat last week by a rep or a little weight.',
       'Log your top set each week. Strength holding steady on a cut = winning.',
@@ -2125,9 +2155,9 @@ function buildWorkoutPlan(){
 }
 function wplan(){
   let p = data.workoutPlan;
-  if(!p || !Array.isArray(p.days) || p.days.length!==7){ data.workoutPlan = buildWorkoutPlan(); }
+  if(!p || !Array.isArray(p.days) || p.days.length!==7){ data.workoutPlan = buildWorkoutPlan(); data.workoutPlan.chosen = false; }
   else if((p.ver||1)<2){
-    const n = buildWorkoutPlan(); n.startDate = p.startDate||null; n.weeks = p.weeks||4;
+    const n = buildWorkoutPlan(); n.chosen = true; n.startDate = p.startDate||null; n.weeks = p.weeks||4;
     data.workoutPlan = n;
     try{ saveData(); }catch(e){}
   }
@@ -2140,7 +2170,8 @@ function wplan(){
     data.workoutPlan.ver = 3;
     try{ saveData(); }catch(e){}
   }
-  if(!Array.isArray(data.workoutPlan.running)) data.workoutPlan.running = buildWorkoutPlan().running;
+  if(data.workoutPlan.name===undefined){ data.workoutPlan.name = "Angel's Cut"; data.workoutPlan.goal = 'cut fat, keep muscle, grow biceps, lean athletic look'; }
+  if(!Array.isArray(data.workoutPlan.running)) data.workoutPlan.running = [];
   return data.workoutPlan;
 }
 function psess(){ if(!data.planSessions || typeof data.planSessions!=='object' || Array.isArray(data.planSessions)) data.planSessions = {}; return data.planSessions; }
@@ -2179,14 +2210,16 @@ function wpSessionIfStale(){
 }
 
 function renderWorkoutPlan(){
-  renderWpSetup(); renderWpAttend(); renderWpProg(); renderWpRun(); renderWpEdit();
+  const v = document.getElementById('view-wplan');
+  if(v) v.classList.toggle('unchosen', !wpChosen());
+  renderWpImport(); renderWpSetup(); renderWpAttend(); renderWpProg(); renderWpRun(); renderWpEdit();
 }
 
 /* --- setup --- */
 function renderWpSetup(){
   const el = document.getElementById('wpSetup'); if(!el) return;
   const p = wplan(), pos = planPos(todayStr());
-  let h = '';
+  let h = '<p class="wp-note" style="margin-bottom:4px;">Plan: <b>'+escapeHtml(p.name||'My plan')+'</b></p>';
   if(!p.startDate){
     h += '<p class="wp-note">Pick the day you do <b>Day 1</b>. The plan then repeats every 7 days, so the app always knows which day it is. You log each session on the <b>Today</b> tab.</p>';
   } else {
@@ -2244,37 +2277,116 @@ function wpAddExtra(){
   tmp.innerHTML = wpCardioHtml('x'+window._wpXn+'_'+Date.now()%100000, '', '', '', null, 0, false, true);
   box.appendChild(tmp.firstChild);
 }
-function wpExBlock(ex, i, saved, date, week){
+const WP_ALTS = [
+  [/rear delt/i, ['Reverse pec deck','Cable face pull','DB rear delt fly']],
+  [/cable.*fly|chest fly|pec fly|\bfly\b/i, ['Machine chest fly','Pec deck','DB chest fly','Cable crossover']],
+  [/incline.*press/i, ['Incline machine press','Incline Smith press','Incline DB press']],
+  [/bench/i, ['Machine chest press','DB bench press','Smith bench press']],
+  [/shoulder press/i, ['DB shoulder press','Machine shoulder press','Smith shoulder press']],
+  [/lateral raise/i, ['Cable lateral raise','Machine lateral raise','DB lateral raise']],
+  [/dip|tricep machine/i, ['Assisted dip','Cable tricep pulldown','Close-grip push-up']],
+  [/tricep/i, ['Rope pushdown','Overhead cable extension','DB overhead extension']],
+  [/hammer/i, ['Cable hammer curl','Rope hammer curl','DB hammer curl']],
+  [/^(?!.*leg).*curl/i, ['DB preacher curl','EZ-bar curl','Cable curl','DB curl']],
+  [/pulldown|pull-down/i, ['Lat pulldown','Close-grip pulldown','Assisted pull-up']],
+  [/row/i, ['Cable row','DB row','Chest-supported row']],
+  [/hack squat/i, ['Leg press','Smith squat','Goblet squat']],
+  [/leg press/i, ['Hack squat','Smith squat','Goblet squat']],
+  [/romanian|rdl/i, ['DB Romanian deadlift','Barbell RDL','Back extension']],
+  [/leg curl/i, ['Seated leg curl','Lying leg curl','Stability-ball leg curl']],
+  [/leg extension/i, ['Seated leg extension','Step-ups','Goblet squat']],
+  [/calf/i, ['Standing calf raise','Seated calf raise','Leg-press calf raise']],
+  [/hip thrust/i, ['Glute bridge','Smith hip thrust','Cable pull-through']],
+  [/crunch/i, ['Cable crunch','Decline sit-up','Hanging knee raise']],
+  [/knee raise/i, ['Captain\'s chair raise','Lying leg raise']],
+  [/pallof/i, ['Cable woodchop','Side plank']],
+  [/plank/i, ['Side plank','Dead bug']],
+  [/dead bug/i, ['Bird dog','Lying leg raise']]
+];
+function wpAlts(name){
+  for(const [re,list] of WP_ALTS){ if(re.test && re.test(name)) return list.filter(x=>exKey(x)!==exKey(name)); }
+  return [];
+}
+function wpExBlock(ex, i, saved, date, week, swapName){
   const sv = saved && ((saved.ex||[]).find(x=>x.id===ex.id) || (saved.ex||[]).find(x=>!x.extra && exKey(x.name)===exKey(ex.name)));
   if(ex.kind==='cardio') return wpCardioBlock(ex, i, sv, week);
-  const last = wpLast(ex.name, date);
-  const n = Math.max(1, Math.min(5, Number(ex.sets)||3), sv ? Math.min(5,(sv.sets||[]).length) : 0);
-  const startN = parseFirstNum(ex.start), lowRep = parseFirstNum(ex.reps), top = parseTopNum(ex.reps), unit = unitOf(ex);
+  const swap = swapName!==undefined ? swapName : (sv && sv.swapFor ? sv.name : null);
+  const name = swap || ex.name;
+  const last = wpLast(name, date);
+  window._wpLastMap = window._wpLastMap || {}; window._wpLastMap[i] = last ? last.sets : null;
+  const useSv = sv && (swapName===undefined);
+  const n = Math.max(1, Math.min(5, Number(ex.sets)||3), useSv ? Math.min(5,(sv.sets||[]).length) : 0);
+  const startN = swap ? null : parseFirstNum(ex.start), lowRep = parseFirstNum(ex.reps), top = parseTopNum(ex.reps), unit = unitOf(ex);
   let rows = '';
-  for(let j=0;j<n;j++){
-    const s = sv && sv.sets && sv.sets[j];
+  const nrows = (useSv && (sv.sets||[]).length===0) ? 0 : n;
+  for(let j=0;j<nrows;j++){
+    const s = useSv && sv.sets && sv.sets[j];
     const lw = last && last.sets[j] ? last.sets[j].w : (ex.kind==='bw' ? null : startN);
     const lr = last && last.sets[j] ? last.sets[j].r : lowRep;
     rows += wpRowHtml(j, s, lw, lr, ex.kind==='bw');
   }
-  let info = '<span class="wp-meta">'+(ex.sets||'?')+' × '+escapeHtml(ex.reps||'')+(ex.start?' · '+escapeHtml(ex.start)+(/^[\d.–-]+$/.test(ex.start)?' lb':''):'')+'</span>';
+  let info = '<span class="wp-meta">'+(ex.sets||'?')+' × '+escapeHtml(ex.reps||'')+(ex.start && !swap?' · '+escapeHtml(ex.start)+(/^[\d.–-]+$/.test(ex.start)?' lb':''):'')+'</span>';
   let lastTxt = '';
   if(last){
     lastTxt = '<div class="wp-last">Last time ('+escapeHtml(fmtShort(last.date))+'): '+last.sets.map(s=>fmtSet(s,unit)).join(', ')+
       ' <button type="button" class="wp-link" onclick="wpFillLast('+i+')">↺ use these</button></div>';
     if(ex.kind==='lift' && top && !/sec/i.test(ex.reps||'') && last.sets.length && last.sets.every(s=>s.r>=top))
       lastTxt += '<div class="wp-up">💪 You hit the top of the range last time — try a little more weight.</div>';
+  } else if(swap){
+    lastTxt = '<div class="wp-last">First time logging '+escapeHtml(swap)+' — use a weight that feels right.</div>';
   }
-  return '<div class="wpex"><b>'+escapeHtml(ex.name)+'</b> '+info+
-    (ex.notes?'<div class="wp-exnote">'+escapeHtml(ex.notes)+'</div>':'')+lastTxt+
+  const alts = wpAlts(ex.name);
+  const chips = alts.length ? '<div class="wp-chips">'+alts.map(a=>'<button type="button" class="wp-chip" onclick="wpSwapPick('+i+',this.textContent)">'+escapeHtml(a)+'</button>').join('')+'</div>' : '';
+  const swapUi = swap
+    ? '<button type="button" class="wp-link" onclick="wpSwapApply('+i+',null)">↩ Back to '+escapeHtml(ex.name)+'</button>'
+    : '<button type="button" class="wp-link" onclick="wpSwapOpen('+i+')">⇄ Swap (machine taken?)</button>';
+  return '<div class="wpex" id="wpb_'+i+'" data-swap="'+wpq(swap||'')+'"><b>'+escapeHtml(name)+'</b> '+info+
+    (swap?'<div class="wp-swapped">⇄ swapped in for '+escapeHtml(ex.name)+' — tracked separately</div>':'')+
+    (ex.notes && !swap?'<div class="wp-exnote">'+escapeHtml(ex.notes)+'</div>':'')+lastTxt+
+    '<div>'+swapUi+'</div>'+
+    '<div class="wp-swap" id="wpsw_'+i+'" style="display:none;">'+
+      '<div class="wp-picklabel">Did something else instead?</div>'+chips+
+      '<input id="wpswn_'+i+'" placeholder="Or type the exercise you did" aria-label="Substitute exercise">'+
+      '<label class="wp-chk" style="margin:6px 0;"><input type="checkbox" id="wpswp_'+i+'"> Use this from now on (change my plan)</label>'+
+      '<div class="wp-btns"><button type="button" onclick="wpSwapUse('+i+')">Use it</button><button type="button" class="suggest-btn" onclick="wpSwapOpen('+i+')">Cancel</button></div>'+
+    '</div>'+
     '<div id="wpx_'+i+'">'+rows+'</div>'+
     '<button type="button" class="wp-link" onclick="wpAddSet('+i+')">+ add set</button></div>';
+}
+function wpSwapOpen(i){ const el = document.getElementById('wpsw_'+i); if(el) el.style.display = el.style.display==='none' ? 'block' : 'none'; }
+function wpSwapPick(i, name){ const el = document.getElementById('wpswn_'+i); if(el) el.value = name; }
+function wpSwapUse(i){
+  const name = ((document.getElementById('wpswn_'+i)||{}).value||'').trim();
+  if(!name){ showToast('Pick or type the exercise you did'); return; }
+  const perm = !!(document.getElementById('wpswp_'+i)||{}).checked;
+  const ex = wplan().days[window._wpCurIdx].ex[i];
+  if(perm){
+    ex.name = name; wpDirty(); saveData(); wpSwapApply(i, null); renderWpEdit(); showToast('Plan updated ✓');
+  } else wpSwapApply(i, name);
+}
+function wpSwapApply(i, name){
+  const ex = wplan().days[window._wpCurIdx].ex[i];
+  const el = document.getElementById('wpb_'+i); if(!ex || !el) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = wpExBlock(ex, i, null, wpDateStr(), 1, name||null);
+  el.replaceWith(tmp.firstChild);
+}
+function wpSwapNote(){
+  const S = psess(), out = [];
+  Object.keys(S).sort().forEach(d=>(S[d].ex||[]).forEach(e=>{ if(e.swapFor) out.push(fmtShort(d)+': '+e.swapFor+' → '+e.name); }));
+  return out.length ? '<p style="font-size:.72rem;color:var(--sub);margin:8px 0 0;">Swapped lifts are tracked on their own: '+out.slice(-6).map(escapeHtml).join(' · ')+'</p>' : '';
 }
 function wpRowHtml(j, s, lw, lr, bw){
   return '<div class="wprow"><span class="wpn">'+(j+1)+'</span>'+
     '<input class="wpw" type="number" inputmode="decimal" step="any" min="0" placeholder="'+(lw!=null?lw:(bw?'bodyweight':'lb'))+'" value="'+(s&&s.w?s.w:'')+'">'+
     '<span>×</span>'+
-    '<input class="wpr" type="number" inputmode="numeric" min="0" placeholder="'+(lr!=null?lr:'reps')+'" value="'+(s?s.r:'')+'"></div>';
+    '<input class="wpr" type="number" inputmode="numeric" min="0" placeholder="'+(lr!=null?lr:'reps')+'" value="'+(s?s.r:'')+'">'+
+    '<button type="button" class="del-btn wp-delset" title="Delete this set" aria-label="Delete this set" onclick="wpDelSet(this)">✕</button></div>';
+}
+function wpDelSet(btn){
+  const row = btn.closest('.wprow'); if(!row) return;
+  const box = row.parentElement; row.remove();
+  box.querySelectorAll('.wprow').forEach((r,j)=>{ r.querySelector('.wpn').textContent = j+1; });
 }
 function wpAddSet(i){
   const box = document.getElementById('wpx_'+i); if(!box) return;
@@ -2304,6 +2416,7 @@ function renderWpSession(){
   const day = p.days[idx];
   const week = (pos && !pos.before) ? pos.week : 1;
   let h = '';
+  if(!wpChosen()){ el.innerHTML = '<p class="wp-note">Set up your workout plan to log sessions here — upload your own plan, build one, or try the example. <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Open Workout plan →</button></p>'; return; }
   if(!p.startDate) h += '<p class="wp-note" style="color:var(--yellow);">Set your Day 1 date so the plan follows the calendar for you. <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Open Workout plan →</button></p>';
   else if(pos && pos.before) h += '<p class="wp-note">Your plan starts '+escapeHtml(fmtShort(p.startDate))+' — you can still log any day early.</p>';
   else if(pos) h += '<p class="wp-note">Week <b>'+pos.week+'</b> · scheduled: <b>'+escapeHtml(p.days[pos.idx].name)+'</b></p>';
@@ -2389,7 +2502,12 @@ function saveWpSession(){
       if(w==='' && rp==='') return;
       sets.push({w:Number(w)||0, r:Number(rp)||0});
     });
-    if(sets.length) ex.push({id:e.id, name:e.name, kind:e.kind, sets});
+    const blk = document.getElementById('wpb_'+i), sw = (blk && blk.dataset.swap) || '';
+    if(sets.length){
+      const item = {id:e.id, name:sw||e.name, kind:e.kind, sets};
+      if(sw) item.swapFor = e.name;
+      ex.push(item);
+    }
   });
   document.querySelectorAll('#wpExtra .wpxblk').forEach(b=>{
     const k = b.dataset.k;
@@ -2520,7 +2638,7 @@ function renderWpProg(){
     (started ? '<p class="wp-note" style="margin:0 0 10px;"><b>'+up+'</b> of '+started+' lifts are up since your first log'+(hold?' · '+hold+' holding steady':'')+'. Holding strength on a cut is a win.</p>'
              : '<p class="wp-note" style="margin:0 0 10px;">Your best set each week (weight × reps) shows here once you log sessions.</p>')+
     '<div class="wp-tblwrap"><table class="wp-tbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
-    '<p style="font-size:.72rem;color:var(--sub);margin:8px 0 0;">▲ beat the previous week · ▼ below it. For a chart of any single lift, see Progress → Strength trends.</p>';
+    wpSwapNote()+'<p style="font-size:.72rem;color:var(--sub);margin:8px 0 0;">▲ beat the previous week · ▼ below it. For a chart of any single lift, see Progress → Strength trends.</p>';
 }
 
 /* --- edit plan --- */
@@ -2577,9 +2695,9 @@ function wpMoveEx(id, dir){
   [a[f.k],a[j]] = [a[j],a[f.k]]; wpDirty(); saveData(); renderWpEdit();
 }
 function wpResetPlan(){
-  if(!confirm('Put the whole plan back to the original Angel\'s Cut? Your start date and logged sessions are kept.')) return;
+  if(!confirm('Put the plan back to the built-in example plan? Your start date and logged sessions are kept.')) return;
   const st = wplan().startDate, wk = wplan().weeks;
-  data.workoutPlan = buildWorkoutPlan(); data.workoutPlan.startDate = st; data.workoutPlan.weeks = wk;
+  data.workoutPlan = buildWorkoutPlan(); data.workoutPlan.chosen = true; data.workoutPlan.startDate = st; data.workoutPlan.weeks = wk;
   window._wpEditing = null; wpDirty(); saveData(); renderWorkoutPlan(); showToast('Plan reset');
 }
 function wpq(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
@@ -2587,7 +2705,7 @@ function renderWpEdit(){
   const el = document.getElementById('wpEdit'); if(!el) return;
   const p = wplan(); let h = '';
   p.days.forEach((d,i)=>{
-    h += '<div class="wp-day"><div class="wp-dayh"><b>'+escapeHtml(d.name)+'</b><button type="button" class="del-btn" title="Rename day" onclick="wpRenameDay('+i+')">✏️</button></div>';
+    h += '<div class="wp-day"><div class="wp-dayh"><b>'+escapeHtml(d.name)+(d.rest?' <span class="wp-meta">💤 rest day</span>':'')+'</b><span><button type="button" class="del-btn" title="Toggle rest day" onclick="wpToggleRest('+i+')">💤</button><button type="button" class="del-btn" title="Rename day" onclick="wpRenameDay('+i+')">✏️</button></span></div>';
     d.ex.forEach(e=>{
       if(window._wpEditing===e.id){
         const cardio = e.kind==='cardio';
@@ -2617,7 +2735,7 @@ function renderWpEdit(){
     });
     h += '<button type="button" class="wp-link" onclick="wpAddEx('+i+')">+ add exercise</button></div>';
   });
-  h += '<button type="button" class="suggest-btn" style="margin-top:12px;" onclick="wpResetPlan()">↺ Reset to original plan</button>';
+  h += '<button type="button" class="suggest-btn" style="margin-top:12px;" onclick="wpResetPlan()">↺ Reset to the example plan</button>';
   el.innerHTML = h;
 }
 
@@ -2634,6 +2752,7 @@ function wpToggleRun(i){
 function renderWpRun(){
   const el = document.getElementById('wpRun'); if(!el) return;
   const p = wplan(), R = p.running||[];
+  const rc = document.getElementById('wpRunCard'); if(rc) rc.style.display = R.length ? '' : 'none';
   const t = todayStr(), pos = planPos(t);
   const week = (pos && !pos.before) ? pos.week : 0;
   const cur = week ? wpRunStage(week) : -1;
@@ -2651,6 +2770,435 @@ function renderWpRun(){
     '<td><input type="checkbox" '+(r.done?'checked ':'')+'onchange="wpToggleRun('+i+')" aria-label="Done"></td></tr>').join('');
   el.innerHTML = head+'<div class="wp-tblwrap"><table class="wp-tbl"><thead><tr><th>Weeks</th><th style="text-align:left;">Each run</th><th>Total</th><th>Done?</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
     '<ul class="wp-tips">'+(p.runTips||[]).map(x=>'<li>'+escapeHtml(x)+'</li>').join('')+'</ul>';
+}
+
+/* ---------- Bring your own plan ---------- */
+function wpChosen(){ return wplan().chosen !== false; }
+function buildBlankPlan(){
+  return {ver:3, chosen:true, name:'My plan', goal:'', startDate:null, weeks:4, tips:[], running:[], runTips:[],
+    days:Array.from({length:7},(_,i)=>({id:uid('pd'),name:'Day '+(i+1),rest:false,ex:[]}))};
+}
+const WP_TEMPLATE_CSV = [
+  'Day,Exercise,Sets,Reps,Start weight (lb),Notes',
+  'Day 1 – Push,Bench press,3,6–10,135,Warm up first',
+  'Day 1 – Push,Incline DB press,3,10,40 each,',
+  'Day 1 – Push,AM run/walk,24–30 min,easy pace,,Cardio rows: put the time in the Sets column',
+  'Day 2 – Pull,Lat pulldown,3,10–12,90,',
+  'Day 2 – Pull,Barbell curl,3,10,50,',
+  'Day 3 – Legs,Leg press,4,12–20,190,',
+  'Day 3 – Legs,Plank,2,30–45 sec,bodyweight,',
+  'Day 4 – Rest,Easy walk,30 min,easy,,',
+  'Day 5 – Upper,Overhead press,3,8–10,65,',
+  'Day 6 – Lower,Romanian deadlift,3,8–10,115,',
+  'Day 7 – Rest,Full rest,,,,'
+].join('\n');
+const WP_CLAUDE_PROMPT = 'I use a workout tracking app that imports plans from a CSV. Convert my workout plan (below) into CSV with exactly these columns:\nDay,Exercise,Sets,Reps,Start weight (lb),Notes\n\nRules:\n- One row per exercise. Max 7 different days (a rest day is a day named like "Day 4 – Rest").\n- Day: names like "Day 1 – Push" (or Monday, Tuesday…).\n- Sets: a number 1–5 (use 5 if the plan has more).\n- Reps: a range like 8–12, or "max", or "30–45 sec".\n- Start weight (lb): my working weight, or "bodyweight", or blank.\n- Notes: optional short cue.\n- Cardio rows: put the duration in Sets (e.g. "24–30 min") and the pace in Reps (e.g. "easy pace").\n- Order each day: cardio first, then lifting, then abs.\n- Put any field containing a comma in double quotes.\n\nOutput only the CSV in a code block.\n\nMy plan:\n';
+function wpParseCsv(text){
+  text = String(text||'').replace(/^﻿/,'');
+  const first = text.split('\n')[0]||'';
+  const nT = first.split('\t').length, nC = first.split(',').length, nS = first.split(';').length;
+  const delim = (nT>nC && nT>=nS) ? '\t' : (nS>nC ? ';' : ',');
+  const rows = []; let row = [], cell = '', q = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cell += '"'; i++; } else q = false; } else cell += c; }
+    else if(c==='"') q = true;
+    else if(c===delim){ row.push(cell); cell = ''; }
+    else if(c==='\n' || c==='\r'){ if(c==='\r' && text[i+1]==='\n') i++; row.push(cell); cell = ''; rows.push(row); row = []; }
+    else cell += c;
+  }
+  if(cell!=='' || row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+function wpCellStr(c){ return String(c==null?'':c).trim(); }
+function wpFindHeader(rows){
+  for(let r=0;r<Math.min(rows.length,40);r++){
+    const cells = (rows[r]||[]).map(c=>wpCellStr(c).toLowerCase());
+    const ei = cells.findIndex(c=>/^(exercises?|movements?|lifts?|exercise name)$/.test(c));
+    const di = cells.findIndex(c=>/^(day|workout|session)( name)?$/.test(c));
+    if(ei>=0 && di>=0) return {r, cells, ei, di};
+  }
+  return null;
+}
+const WP_WEEKDAYS = ['mon','tue','wed','thu','fri','sat','sun'];
+function wpRowsToDays(sheetRows, hdr, warnings){
+  const cells = hdr.cells;
+  const col = re => cells.findIndex((c,i)=>i!==hdr.ei && i!==hdr.di && re.test(c));
+  const ci = {sets:col(/^sets?$/), reps:col(/^(reps?|rep range|reps? \/ time)$/), start:col(/^(start|starting|weight|load|start weight|start weight \(lb\)|working weight)/), notes:col(/^(notes?|comments?|cues?)$/), type:col(/^(type|section|category|group)$/), dur:col(/^(duration|time|minutes)$/)};
+  const weekCols = cells.filter(c=>/^week\s*\d+/.test(c)).length;
+  const order = [], byDay = {};
+  let curDay = '';
+  const cardioName = /\b(run|jog|walk|bike|biking|cycl\w*|stair\w*|elliptical|rowing|swim\w*|cardio|treadmill|hiit|intervals?)\b/i;
+  for(let r=hdr.r+1; r<sheetRows.length; r++){
+    const row = sheetRows[r]||[];
+    const dayCell = wpCellStr(row[hdr.di]);
+    if(dayCell) curDay = dayCell;
+    const name = wpCellStr(row[hdr.ei]).replace(/\s*\((new|after lifting)\)\s*/ig,' ').trim();
+    if(!curDay || !name) continue;
+    const g = i => i>=0 ? wpCellStr(row[i]) : '';
+    const setsRaw = g(ci.sets), repsRaw = g(ci.reps), startRaw = g(ci.start), notes = g(ci.notes), typ = g(ci.type).toLowerCase(), durRaw = g(ci.dur);
+    const numericSets = /^\d+$/.test(setsRaw);
+    const restDay = /rest|off day|recovery/i.test(curDay);
+    let kind = 'lift', dur = '';
+    if(/cardio/.test(typ)) kind = 'cardio';
+    else if(!numericSets && /\d+\s*(–|-|to)?\s*\d*\s*(min|sec|hr|mile|km)/i.test(setsRaw+' '+durRaw)) kind = 'cardio';
+    else if(!numericSets && cardioName.test(name)) kind = 'cardio';
+    else if(!numericSets && !setsRaw && !repsRaw && restDay) kind = 'cardio';
+    else if(/body ?weight|^bw$/i.test(startRaw) || /bodyweight/.test(typ)) kind = 'bw';
+    let ex;
+    if(kind==='cardio'){
+      const timeLike = x => /\d/.test(x) && /(min|sec|hr|mile|km)/i.test(x);
+      let pace = repsRaw;
+      dur = durRaw || (timeLike(setsRaw) ? setsRaw : '');
+      if(!dur && timeLike(repsRaw)){ dur = repsRaw; pace = startRaw; }
+      if(!dur && /^\d/.test(setsRaw)){ dur = setsRaw; }
+      if(!dur){ const m = name.match(/(\d+\s*(?:–|-)\s*\d+|\d+)\s*min/i); if(m) dur = m[1]+' min'; }
+      ex = {id:uid('px'),kind:'cardio',grp:'cardio',name,sets:0,dur,reps:pace,start:'',notes};
+    } else {
+      let sets = parseInt(setsRaw,10);
+      if(!(sets>0)){ sets = 3; warnings.push('"'+name+'": no set count found, used 3'); }
+      if(sets>5){ warnings.push('"'+name+'": '+sets+' sets shortened to 5 (the app logs up to 5)'); sets = 5; }
+      const grp = /abs|core/.test(typ) ? 'abs' : wpGuessGrp(name);
+      ex = {id:uid('px'),kind,grp,name,sets,reps:repsRaw,start:startRaw,notes};
+    }
+    if(!byDay[curDay]){ byDay[curDay] = []; order.push(curDay); }
+    byDay[curDay].push(ex);
+  }
+  return {order, byDay, weekCols};
+}
+function wpPlaceDays(order, byDay, warnings){
+  if(!order.length) return {error:'I could not find any exercises. Make sure the first row has headers like Day, Exercise, Sets, Reps.'};
+  const slots = new Array(7).fill(null);
+  const wd = order.map(n=>WP_WEEKDAYS.findIndex(w=>new RegExp('^'+w,'i').test(n.trim())));
+  const dn = order.map(n=>{ const m = n.match(/day\s*(\d+)/i); return m ? Number(m[1]) : null; });
+  if(wd.every(i=>i>=0) && new Set(wd).size===order.length){
+    order.forEach((n,k)=>{ slots[wd[k]] = n; });
+  } else if(dn.every(n=>n>=1 && n<=7) && new Set(dn).size===order.length){
+    order.forEach((n,k)=>{ slots[dn[k]-1] = n; });
+  } else {
+    if(order.length>7) return {error:'This plan has '+order.length+' different days. The app uses a repeating 7-day cycle — combine some days or remove extras and try again.'};
+    order.forEach((n,k)=>{ slots[k] = n; });
+  }
+  const days = slots.map((n,i)=>{
+    if(!n) return {id:uid('pd'),name:'Day '+(i+1)+' – Rest',rest:true,ex:[]};
+    const ex = byDay[n];
+    const rest = /rest|off day|recovery/i.test(n) || ex.every(e=>e.kind==='cardio') && /rest|off|recovery/i.test(n);
+    return {id:uid('pd'),name:n,rest,ex};
+  });
+  return {days};
+}
+function wpSheetsToPlan(sheets, fileName){
+  const warnings = [];
+  let planSheet = null, hdr = null;
+  for(const sh of sheets){ const h = wpFindHeader(sh.rows||[]); if(h){ planSheet = sh; hdr = h; break; } }
+  if(!planSheet) return {error:'I could not find a header row with "Day" and "Exercise" columns. Download the template to see the format, or use the Claude prompt to convert your plan.'};
+  const parsed = wpRowsToDays(planSheet.rows, hdr, warnings);
+  const placed = wpPlaceDays(parsed.order, parsed.byDay, warnings);
+  if(placed.error) return {error:placed.error};
+  const tips = [];
+  let goal = '';
+  for(let r=0;r<hdr.r;r++){
+    const t = wpCellStr((planSheet.rows[r]||[])[0]); if(!t) continue;
+    if(/^goal\s*:/i.test(t)) goal = t.replace(/^goal\s*:\s*/i,''); else tips.push(t);
+  }
+  let running = [];
+  for(const sh of sheets){
+    if(sh===planSheet) continue;
+    for(let r=0;r<Math.min((sh.rows||[]).length,30);r++){
+      const cells = (sh.rows[r]||[]).map(c=>wpCellStr(c).toLowerCase());
+      const wi = cells.findIndex(c=>/^weeks?$/.test(c)), ri = cells.findIndex(c=>/^(each run|run|workout|interval|intervals)$/.test(c));
+      if(wi>=0 && ri>=0){
+        const ti = cells.findIndex(c=>/^(total|total time|time)$/.test(c));
+        for(let k=r+1;k<sh.rows.length;k++){
+          const row = sh.rows[k]||[]; const wk = wpCellStr(row[wi]), rn = wpCellStr(row[ri]);
+          if(wk && rn) running.push({weeks:wk, run:rn, total:ti>=0?wpCellStr(row[ti]):'', done:false});
+        }
+        break;
+      }
+    }
+    if(running.length) break;
+  }
+  const name = (fileName||'My plan').replace(/\.[a-z0-9]+$/i,'').replace(/[_-]+/g,' ').trim() || 'My plan';
+  const plan = {ver:3, chosen:true, name, goal, startDate:null, weeks:Math.max(4, parsed.weekCols||0), tips:tips.slice(0,6), running, runTips:[], days:placed.days};
+  return {plan, warnings};
+}
+function wpNormalizePlanJson(o, fileName){
+  const days = Array.isArray(o) ? o : (o && o.days);
+  if(!Array.isArray(days) || !days.length || days.length>7) return {error:'That file does not look like a plan from this app (it needs 1–7 days).'};
+  const warnings = [];
+  const out = days.map((d,i)=>({id:uid('pd'),name:String(d.name||('Day '+(i+1))),rest:!!d.rest,ex:(Array.isArray(d.ex)?d.ex:[]).map(e=>{
+    const kind = e.kind==='cardio' ? 'cardio' : (e.kind==='bw' ? 'bw' : 'lift');
+    const x = {id:uid('px'),kind,grp:e.grp || (kind==='cardio'?'cardio':wpGuessGrp(e.name)),name:String(e.name||'Exercise'),sets:kind==='cardio'?0:Math.max(1,Math.min(5,Number(e.sets)||3)),reps:String(e.reps==null?'':e.reps),start:String(e.start==null?'':e.start),notes:String(e.notes||'')};
+    if(kind==='cardio') x.dur = String(e.dur||'');
+    return x; })}));
+  while(out.length<7) out.push({id:uid('pd'),name:'Day '+(out.length+1)+' – Rest',rest:true,ex:[]});
+  const plan = {ver:3, chosen:true, name:String((o&&o.name)||(fileName||'My plan').replace(/\.[a-z0-9]+$/i,'')), goal:String((o&&o.goal)||''), startDate:null, weeks:Math.max(1,Number(o&&o.weeks)||4),
+    tips:Array.isArray(o&&o.tips)?o.tips.map(String):[], running:Array.isArray(o&&o.running)?o.running.map(r=>({weeks:String(r.weeks||''),run:String(r.run||''),total:String(r.total||''),done:false})):[], runTips:Array.isArray(o&&o.runTips)?o.runTips.map(String):[], days:out};
+  return {plan, warnings};
+}
+function wpLoadXlsx(ok, fail){
+  if(window.XLSX){ ok(); return; }
+  const sc = document.createElement('script');
+  sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  sc.onload = ok; sc.onerror = fail;
+  document.head.appendChild(sc);
+}
+function wpFileChosen(inp){
+  const f = inp.files && inp.files[0]; if(!f) return;
+  const name = f.name; inp.value = '';
+  const bad = ()=>showToast('Could not read that file');
+  if(/\.xlsx?$/i.test(name)){
+    const rd = new FileReader();
+    rd.onload = e=>{
+      wpLoadXlsx(()=>{
+        try{
+          const wb = XLSX.read(e.target.result, {type:'array'});
+          const sheets = wb.SheetNames.map(n=>({name:n, rows:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:''})}));
+          wpShowImportPreview(wpSheetsToPlan(sheets, name));
+        }catch(err){ bad(); }
+      }, ()=>showToast('Could not load the spreadsheet reader (needs internet). Save your plan as .csv and upload that instead.'));
+    };
+    rd.onerror = bad; rd.readAsArrayBuffer(f);
+  } else {
+    const rd = new FileReader();
+    rd.onload = e=>wpImportText(String(e.target.result||''), name);
+    rd.onerror = bad; rd.readAsText(f);
+  }
+}
+function wpImportText(text, fileName){
+  const t = text.trim();
+  if(!t){ showToast('Nothing to read yet'); return; }
+  if(t[0]==='{' || t[0]==='['){
+    try{ wpShowImportPreview(wpNormalizePlanJson(JSON.parse(t), fileName)); return; }catch(e){ /* fall through to CSV */ }
+  }
+  const fence = t.match(/```[a-z]*\n([\s\S]*?)```/i);
+  wpShowImportPreview(wpSheetsToPlan([{name:'CSV', rows:wpParseCsv(fence ? fence[1] : t)}], fileName));
+}
+function wpReadPasted(){ wpImportText((document.getElementById('wpPaste')||{}).value||'', 'My plan'); }
+function wpShowImportPreview(res){
+  const box = document.getElementById('wpImportPreview'); if(!box) return;
+  if(!res || res.error){ window._wpPending = null; box.innerHTML = '<p class="wp-note" style="color:var(--yellow);">'+escapeHtml((res&&res.error)||'Could not read that plan.')+'</p>'; return; }
+  window._wpPending = res;
+  const p = res.plan, n = p.days.reduce((a,d)=>a+d.ex.length,0);
+  box.innerHTML =
+    '<div class="wp-edit" style="margin-top:12px;"><b>Ready to import</b>'+
+    '<label>Plan name<input id="wpImpName" value="'+wpq(p.name)+'"></label>'+
+    '<div style="font-size:.8rem;">'+n+' exercises across '+p.days.filter(d=>d.ex.length).length+' days'+(p.running.length?' · running build-up included':'')+'</div>'+
+    '<ul class="wp-tips" style="margin:0;">'+p.days.map(d=>'<li>'+escapeHtml(d.name)+' — '+(d.ex.length?d.ex.length+' exercise'+(d.ex.length===1?'':'s'):'rest')+'</li>').join('')+'</ul>'+
+    (res.warnings&&res.warnings.length?'<div class="wp-exnote" style="color:var(--yellow);">'+res.warnings.slice(0,6).map(escapeHtml).join('<br>')+'</div>':'')+
+    '<div class="wp-btns"><button type="button" onclick="wpApplyImport()">✓ Use this plan</button><button type="button" class="suggest-btn" onclick="wpCancelImport()">Cancel</button></div></div>';
+}
+function wpCancelImport(){ window._wpPending = null; const b = document.getElementById('wpImportPreview'); if(b) b.innerHTML = ''; }
+function wpApplyImport(){
+  const res = window._wpPending; if(!res) return;
+  const old = data.workoutPlan || {};
+  const hadSessions = Object.keys(psess()).length>0;
+  if(hadSessions && !confirm('Replace your current plan? Your logged sessions are kept, and progress is matched by exercise name.')) return;
+  const nm = ((document.getElementById('wpImpName')||{}).value||'').trim();
+  const plan = res.plan; if(nm) plan.name = nm;
+  plan.startDate = old.startDate || null;
+  data.workoutPlan = plan;
+  window._wpPending = null; window._wpEditing = null; window._wpDay = null;
+  wpDirty(); saveData();
+  wpCancelImport(); renderWorkoutPlan(); renderFitSummary(); renderWorkoutSection();
+  showToast(plan.startDate ? 'Plan imported ✓' : 'Plan imported ✓ — now set your Day 1 date');
+}
+function wpStartBlank(){
+  const old = data.workoutPlan || {};
+  const p = buildBlankPlan(); p.startDate = old.startDate || null;
+  data.workoutPlan = p; wpDirty(); saveData(); window._wpEditing = null;
+  renderWorkoutPlan(); renderFitSummary(); renderWorkoutSection();
+  showToast('Blank plan ready — add your exercises under "Your plan"');
+}
+function wpUseAngel(){
+  const old = data.workoutPlan || {};
+  const p = buildWorkoutPlan(); p.chosen = true; p.startDate = old.startDate || null;
+  data.workoutPlan = p; wpDirty(); saveData(); window._wpEditing = null;
+  renderWorkoutPlan(); renderFitSummary(); renderWorkoutSection();
+  showToast('Example plan loaded');
+}
+function wpCopyPrompt(){
+  const text = WP_CLAUDE_PROMPT;
+  const fb = ()=>{ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); showToast('Prompt copied — paste it into Claude with your plan'); }catch(e){ showToast('Could not copy'); } document.body.removeChild(ta); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>showToast('Prompt copied — paste it into Claude with your plan'), fb); else fb();
+}
+function wpDownloadTemplate(){ wpDownloadText('workout-plan-template.csv', WP_TEMPLATE_CSV, 'text/csv'); }
+function wpDownloadPlan(){
+  const p = wplan();
+  const out = {name:p.name, goal:p.goal||'', weeks:p.weeks, tips:p.tips||[], running:(p.running||[]).map(r=>({weeks:r.weeks,run:r.run,total:r.total})), runTips:p.runTips||[], days:p.days.map(d=>({name:d.name,rest:!!d.rest,ex:d.ex.map(e=>({name:e.name,kind:e.kind,grp:e.grp,sets:e.sets,reps:e.reps,start:e.start,dur:e.dur||'',notes:e.notes}))}))};
+  wpDownloadText('workout-plan-'+(String(p.name||'plan').toLowerCase().replace(/[^a-z0-9]+/g,'-')||'plan')+'.json', JSON.stringify(out,null,2), 'application/json');
+  showToast('Plan downloaded — share it with a friend');
+}
+function wpToggleRest(i){ const d = wplan().days[i]; d.rest = !d.rest; wpDirty(); saveData(); renderWorkoutPlan(); }
+function renderWpImport(){
+  const el = document.getElementById('wpImport'); if(!el) return;
+  const chosen = wpChosen();
+  el.innerHTML =
+    '<p class="wp-note">'+(chosen ? 'Switch to a different plan, or share yours.' : '<b>Welcome!</b> Bring your own workout plan, build one from scratch, or try the example.')+'</p>'+
+    '<details class="wp-know"><summary>ℹ️ What to know before uploading</summary><ul>'+
+      '<li><b>Columns:</b> Day, Exercise, Sets, Reps, Start weight, Notes (headers can sit below intro lines).</li>'+
+      '<li><b>7-day cycle:</b> plans repeat every 7 days. Use Day 1–7 or Mon–Sun; missing days become rest days. More than 7 days will not import.</li>'+
+      '<li><b>Cardio:</b> put the time in Sets (e.g. 24–30 min) and pace in Reps.</li>'+
+      '<li><b>Sets:</b> the app logs up to 5 per exercise. Bodyweight/timed moves: write bodyweight or 30–45 sec.</li>'+
+      '<li><b>Session order:</b> always Cardio → Lifting → Abs, whatever order your file uses.</li>'+
+      '<li><b>.xlsx</b> needs internet the first time; offline, save it as .csv.</li>'+
+      '<li><b>Switching plans</b> keeps your logged sessions; progress matches by exercise name.</li>'+
+      '<li><b>After importing,</b> set your Day 1 date. You can edit anything under Your plan.</li>'+
+      '<li>Your data stays on this device. Use Settings → Export for backups.</li></ul>'+
+      '<div class="wp-picklabel" style="margin-top:10px;">Plan in a photo, PDF or notes? Give Claude this exact prompt plus your plan:</div>'+
+      '<pre class="wp-prompt">'+escapeHtml(WP_CLAUDE_PROMPT)+'</pre>'+
+      '<button type="button" class="suggest-btn" onclick="wpCopyPrompt()">🤖 Copy this prompt</button></details>'+
+    '<label class="suggest-btn wp-filebtn">📁 Upload a plan (.xlsx, .csv or .json)<input type="file" accept=".xlsx,.xls,.csv,.tsv,.json,.txt" onchange="wpFileChosen(this)" hidden></label>'+
+    '<details style="margin-top:8px;"><summary class="wp-link" style="cursor:pointer;">Or paste your plan (CSV or JSON)</summary>'+
+      '<textarea id="wpPaste" rows="5" placeholder="Day,Exercise,Sets,Reps,Start weight (lb),Notes&#10;Day 1 – Push,Bench press,3,6–10,135," style="width:100%;margin-top:6px;"></textarea>'+
+      '<button type="button" onclick="wpReadPasted()" style="margin-top:6px;">Read pasted plan</button></details>'+
+    '<div id="wpImportPreview"></div>'+
+    '<div class="wp-btns" style="margin-top:10px;"><button type="button" class="suggest-btn" onclick="wpDownloadTemplate()">⬇️ Template (.csv)</button><button type="button" class="suggest-btn" onclick="wpCopyPrompt()">🤖 Copy Claude prompt</button></div>'+
+    '<p style="font-size:.72rem;color:var(--sub);margin:8px 0 0;">Have a plan in any format (photo, PDF, notes)? Tap <b>Copy Claude prompt</b>, paste it into Claude along with your plan, then paste the CSV it gives you into the box above.</p>'+
+    (chosen ? '<button type="button" class="suggest-btn" style="margin-top:8px;" onclick="wpDownloadPlan()">⬇️ Download my current plan (.json)</button>'
+            : '<div class="wp-btns" style="margin-top:10px;"><button type="button" onclick="wpStartBlank()">✏️ Build from scratch</button><button type="button" class="suggest-btn" onclick="wpUseAngel()">Try the example plan</button></div>');
+}
+
+/* ---------- Export for analysis ---------- */
+function wpExportRows(weeks){
+  const t = todayStr(), p = wplan(), S = psess();
+  const from = weeks ? shiftDate(t, -7*weeks+1) : '0000-00-00';
+  const dates = Object.keys(S).filter(d=>d>=from && d<=t).sort();
+  const sessions = dates.map(d=>{
+    const s = S[d], n = p.startDate ? daysBetween(p.startDate,d) : null;
+    return {date:d, week:(n!=null && n>=0)?Math.floor(n/7)+1:null, day:s.dayName||(p.days[s.day]||{}).name||'', dur:s.dur||0, cals:s.cals||0, rest:!!s.rest, ex:s.ex||[]};
+  });
+  const extra = [];
+  Object.keys(data.workoutLogs||{}).filter(d=>d>=from && d<=t).sort().forEach(d=>(data.workoutLogs[d]||[]).forEach(w=>{ if(!w.ps) extra.push(Object.assign({date:d},w)); }));
+  return {from, t, sessions, extra};
+}
+function wpVol(sets){ return (sets||[]).reduce((a,s)=>a+(s.w||0)*(s.r||0),0); }
+function wpExportMarkdown(weeks, incW, incN){
+  const p = wplan(), R = wpExportRows(weeks), t = R.t, pos = planPos(t);
+  const L = [];
+  L.push('# Workout log export — '+(p.name||'My plan')+' ('+(weeks?('last '+weeks+' weeks'):'all time')+')');
+  L.push('Exported '+t+'. Units: lb. Sets are written weight×reps.'+(p.goal?' Training goal: '+p.goal+'.':'')+((p.tips||[]).length?' Plan notes: '+p.tips.join(' '):''));
+  L.push('');
+  L.push('> Suggested prompt: "Analyze this workout log. Look at strength trends per lift, weekly volume per muscle group, consistency, plateaus or imbalances, and whether my weights/reps are progressing while I cut. Then suggest specific changes for the next 4 weeks."');
+  L.push('');
+  L.push('## Plan');
+  L.push(p.startDate ? 'Day 1 started '+p.startDate+'; today is week '+(pos&&!pos.before?pos.week:'—')+'. The 7-day cycle repeats.' : 'Start date not set.');
+  p.days.forEach(d=>{
+    L.push('- **'+d.name+'**: '+d.ex.map(e=>e.kind==='cardio' ? e.name+' ('+(e.dur||'')+(e.reps?', '+e.reps:'')+')' : e.name+' '+(e.sets||'?')+'×'+(e.reps||'')+(e.start?' @ '+e.start:'')).join('; '));
+  });
+  L.push('');
+  // attendance
+  if(p.startDate){
+    let planned=0, done=0; const byWeek = {};
+    const S = psess();
+    for(let n=0; p.startDate && shiftDate(p.startDate,n)<=t; n++){
+      const d = shiftDate(p.startDate,n), day = p.days[n%7], w = Math.floor(n/7)+1;
+      byWeek[w] = byWeek[w] || {planned:0, done:0};
+      if(!day.rest){ planned++; byWeek[w].planned++; }
+      if(S[d] && !S[d].rest){ done++; byWeek[w].done++; }
+    }
+    L.push('## Consistency');
+    L.push('Gym sessions completed: '+done+' of '+planned+' scheduled so far ('+(planned?Math.round(Math.min(100,done/planned*100)):0)+'%).');
+    L.push('Per week: '+Object.keys(byWeek).map(w=>'Wk '+w+' '+byWeek[w].done+'/'+byWeek[w].planned).join(', '));
+    L.push('');
+  }
+  // progression tables
+  const names = [], seen = {};
+  R.sessions.forEach(s=>s.ex.forEach(e=>{ if(e.kind==='cardio') return; const k = exKey(e.name); if(!seen[k]){ seen[k]=1; names.push(e.name); } }));
+  const weeksSeen = Array.from(new Set(R.sessions.map(s=>s.week).filter(w=>w))).sort((a,b)=>a-b);
+  if(names.length && weeksSeen.length){
+    const best = {}, vol = {};
+    R.sessions.forEach(s=>{ if(!s.week) return; s.ex.forEach(e=>{
+      if(e.kind==='cardio' || !e.sets || !e.sets.length) return;
+      const k = exKey(e.name); best[k] = best[k]||{}; vol[k] = vol[k]||{};
+      const b = topSet(e.sets), c = best[k][s.week];
+      if(!c || b.w>c.w || (b.w===c.w && b.r>c.r)) best[k][s.week] = b;
+      vol[k][s.week] = (vol[k][s.week]||0) + wpVol(e.sets);
+    }); });
+    L.push('## Best set per week (weight×reps)');
+    L.push('| Exercise | '+weeksSeen.map(w=>'Wk '+w).join(' | ')+' |');
+    L.push('|---|'+weeksSeen.map(()=>'---').join('|')+'|');
+    names.forEach(n=>{ const k = exKey(n); L.push('| '+n+' | '+weeksSeen.map(w=>best[k]&&best[k][w] ? fmtSet(best[k][w]) : '–').join(' | ')+' |'); });
+    L.push('');
+    L.push('## Weekly volume per exercise (sum of weight×reps, lb)');
+    L.push('| Exercise | '+weeksSeen.map(w=>'Wk '+w).join(' | ')+' |');
+    L.push('|---|'+weeksSeen.map(()=>'---').join('|')+'|');
+    names.forEach(n=>{ const k = exKey(n); L.push('| '+n+' | '+weeksSeen.map(w=>vol[k]&&vol[k][w] ? Math.round(vol[k][w]) : '–').join(' | ')+' |'); });
+    L.push('');
+  }
+  const unitMap = {}; p.days.forEach(d=>d.ex.forEach(q=>{ unitMap[exKey(q.name)] = unitOf(q); }));
+  // session log
+  L.push('## Session log');
+  if(!R.sessions.length) L.push('No plan sessions logged in this range.');
+  R.sessions.forEach(s=>{
+    L.push('### '+s.date+(s.week?' (Week '+s.week+', ':' (')+s.day+')'+(s.dur?' — '+s.dur+' min lifting':'')+(s.cals?', '+s.cals+' cal burned':''));
+    s.ex.forEach(e=>{
+      if(e.kind==='cardio') L.push('- Cardio — '+e.name+': '+(e.min?e.min+' min':'done')+(e.extra?' (extra)':''));
+      else if(e.sets && e.sets.length) L.push('- '+e.name+(e.swapFor?' (swapped in for '+e.swapFor+')':'')+': '+e.sets.map(x=>fmtSet(x,unitMap[exKey(e.name)]||' reps')).join(', '));
+    });
+  });
+  L.push('');
+  if(R.extra.length){
+    L.push('## Other workouts (outside the plan)');
+    R.extra.forEach(w=>{
+      const sets = w.type==='Strength' ? getSetsList(w).map(s=>s.weight+'×'+s.reps).join(', ') : '';
+      L.push('- '+w.date+': '+w.name+' ('+w.type+')'+(w.duration?', '+w.duration+' min':'')+(w.cals?', '+w.cals+' cal':'')+(sets?' — '+sets:''));
+    });
+    L.push('');
+  }
+  if(incW){
+    const ws = Object.keys(data.weightLogs||{}).filter(d=>d>=R.from && d<=t).sort();
+    L.push('## Body weight (lb)');
+    L.push(ws.length ? ws.map(d=>d+': '+data.weightLogs[d]).join('\n') : 'No weigh-ins in this range.');
+    const g = data.weightGoal||{}; if(g.goalWeight) L.push('Goal weight: '+g.goalWeight+' lb'+(g.targetDate?' by '+g.targetDate:'')+'; start '+(g.startWeight||'?')+' lb.');
+    L.push('');
+  }
+  if(incN){
+    const ds = Object.keys(data.logs||{}).filter(d=>d>=R.from && d<=t).sort();
+    L.push('## Daily nutrition (calories, protein/carbs/fat in g, fiber g) and calories burned');
+    L.push('Calorie goal: '+(data.goal||'?')+' per day.');
+    ds.forEach(d=>{ const i = dayInfo(d); const b = workoutDayTotal(d); if(!i.cals) return;
+      L.push('- '+d+': '+Math.round(i.cals)+' cal, P '+Math.round(i.p)+' / C '+Math.round(i.c)+' / F '+Math.round(i.f)+', fiber '+Math.round(i.fi)+(b?', burned '+b:'')); });
+    L.push('');
+  }
+  return L.join('\n');
+}
+function wpCsvCell(v){ v = String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+function wpExportCsv(weeks){
+  const R = wpExportRows(weeks);
+  const rows = [['date','week','plan_day','category','exercise','swapped_for','set','weight_lb','reps_or_seconds','minutes']];
+  R.sessions.forEach(s=>s.ex.forEach(e=>{
+    if(e.kind==='cardio') rows.push([s.date,s.week||'',s.day,'cardio',e.name,'','','','',e.min||'']);
+    else (e.sets||[]).forEach((x,j)=>rows.push([s.date,s.week||'',s.day,wpGrp({kind:e.kind,name:e.name}),e.name,e.swapFor||'',j+1,x.w||0,x.r,'']));
+  }));
+  R.extra.forEach(w=>{
+    if(w.type==='Strength') getSetsList(w).forEach((x,j)=>rows.push([w.date,'','(extra)','strength',w.name,'',j+1,x.weight,x.reps,'']));
+    else rows.push([w.date,'','(extra)',w.type.toLowerCase(),w.name,'','','','',w.duration||'']);
+  });
+  return rows.map(r=>r.map(wpCsvCell).join(',')).join('\n');
+}
+function wpExportOpts(){
+  const wk = (document.getElementById('exRange')||{}).value || 'all';
+  return {weeks: wk==='all' ? 0 : Number(wk), incW: !!(document.getElementById('exWeight')||{}).checked, incN: !!(document.getElementById('exNutri')||{}).checked};
+}
+function wpDownloadText(name, text, mime){
+  const blob = new Blob([text], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function wpExportDownload(kind){
+  const o = wpExportOpts();
+  if(kind==='csv') wpDownloadText('soul-balance-workouts-'+todayStr()+'.csv', wpExportCsv(o.weeks), 'text/csv');
+  else wpDownloadText('soul-balance-workouts-'+todayStr()+'.md', wpExportMarkdown(o.weeks,o.incW,o.incN), 'text/markdown');
+  showToast('Export downloaded ✓');
+}
+function wpExportCopy(){
+  const o = wpExportOpts(), text = wpExportMarkdown(o.weeks,o.incW,o.incN);
+  const fallback = ()=>{ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); showToast('Copied — paste it into Claude ✓'); }catch(e){ showToast('Could not copy — use Download'); } document.body.removeChild(ta); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>showToast('Copied — paste it into Claude ✓'), fallback);
+  else fallback();
 }
 
 /* ---------- Nutrition / Fitness mode ---------- */
@@ -2680,7 +3228,7 @@ function renderFitSummary(){
   const fp = document.getElementById('fsPlan');
   if(fp){
     const pl = wplan(), dd = wpDateStr(), pos = planPos(dd);
-    if(!pl.startDate) fp.innerHTML = '📋 <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Set up your workout plan →</button>';
+    if(!wpChosen() || !pl.startDate) fp.innerHTML = '📋 <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Set up your workout plan →</button>';
     else if(pos.before) fp.innerHTML = '📋 Plan starts '+escapeHtml(fmtShort(pl.startDate));
     else {
       const ss = psess()[dd];
