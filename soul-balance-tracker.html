@@ -84,6 +84,21 @@
     background:linear-gradient(120deg,var(--teal),var(--purple));
     color:#fff;
   }
+  .modebar{display:flex;gap:4px;background:rgba(0,0,0,.28);border-radius:16px;padding:4px;margin-top:12px;}
+  .modebar button{flex:1;border:none;border-radius:12px;padding:9px 4px;font-weight:700;font-size:.85rem;background:transparent;color:rgba(255,255,255,.75);cursor:pointer;}
+  .modebar button.active{background:#fff;color:#16203f;}
+  body.mode-fitness header{background:linear-gradient(120deg,#ff7a59,var(--coral) 45%,var(--purple));}
+  body.mode-fitness .tab-btn.active{background:linear-gradient(120deg,var(--coral),var(--purple));}
+  body.mode-fitness .bottom-nav button.active{color:var(--coral);}
+  body.mode-fitness .nutri-only, body.mode-nutrition .fit-only{display:none !important;}
+  body.mode-fitness [data-mode="nutrition"], body.mode-nutrition [data-mode="fitness"]{display:none !important;}
+  .fit-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;}
+  .fit-sum div{background:#1c2750;border-radius:12px;padding:10px 4px;}
+  .fit-sum b{display:block;font-size:1.15rem;}
+  .fit-sum span{font-size:.7rem;color:var(--sub);}
+  .fh-day{border-top:1px solid #2a3768;padding:8px 0;}
+  .fh-day>b{font-size:.82rem;}
+  .fh-day .entry{padding:6px 0;}
   .view{display:none;}
   .view.active{display:block;animation:fade .25s ease;}
   @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
@@ -148,6 +163,15 @@
   .card.collapsed>h3.collapsible .chev{transform:rotate(-90deg);}
   .card.collapsed>:not(h3){display:none !important;}
   .card.collapsed>h3.collapsible{margin-bottom:0;}
+  .card{position:relative;}
+  .mv{display:none;position:absolute;top:8px;right:8px;gap:6px;z-index:5;}
+  body.reordering .mv{display:flex;}
+  .reset-order-btn{display:none;}
+  body.reordering .reset-order-btn{display:inline-block;}
+  body.reordering .card>h3 .chev{display:none;}
+  body.reordering .card:has(>.mv){outline:2px dashed var(--teal);outline-offset:-2px;}
+  .mv button{width:40px;height:40px;border-radius:12px;border:none;background:var(--teal);color:#06122b;font-size:1.1rem;font-weight:800;cursor:pointer;}
+  .mv button:disabled{opacity:.3;}
   .collapse-bar{display:flex;gap:8px;justify-content:flex-end;margin:0 0 8px;}
   .collapse-bar button{background:none;border:1px solid #2c3968;color:var(--sub);border-radius:8px;font-size:.72rem;padding:4px 10px;cursor:pointer;}
 
@@ -499,7 +523,7 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
 </style>
 </head>
-<body>
+<body class="mode-nutrition">
 
 <header>
   <div class="header-row">
@@ -509,6 +533,10 @@
     </div>
     <button class="gear" onclick="openSettings()">⚙️</button>
   </div>
+  <div class="modebar" id="modeBar">
+    <button type="button" class="active" data-m="nutrition" onclick="setMode('nutrition')">🍽️ Nutrition</button>
+    <button type="button" data-m="fitness" onclick="setMode('fitness')">🏋️ Fitness</button>
+  </div>
 </header>
 
 <main>
@@ -516,8 +544,8 @@
     <button class="tab-btn active" data-view="today" onclick="switchTab('today')">Today</button>
     <button class="tab-btn" data-view="history" onclick="switchTab('history')">History</button>
     <button class="tab-btn" data-view="progress" onclick="switchTab('progress')">Progress</button>
-    <button class="tab-btn" data-view="plan" onclick="switchTab('plan')">Plan</button>
-    <button class="tab-btn" data-view="ingredients" onclick="switchTab('ingredients')">Ingredients</button>
+    <button class="tab-btn nutri-only" data-view="plan" onclick="switchTab('plan')">Plan</button>
+    <button class="tab-btn nutri-only" data-view="ingredients" onclick="switchTab('ingredients')">Ingredients</button>
   </div>
 
   <!-- TODAY -->
@@ -539,7 +567,7 @@
       <p style="font-size:.8rem;color:var(--sub);margin:6px 0 10px;">Browsers can clear app data without warning. Save a backup file every week or so — it only takes a tap.</p>
       <button type="button" class="suggest-btn" style="margin-top:0;" onclick="exportData()">📤 Export backup now</button>
     </div>
-    <div class="card">
+    <div class="card" data-mode="nutrition">
       <div class="ring-wrap">
         <div class="ring">
           <svg viewBox="0 0 140 140">
@@ -593,13 +621,13 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="nutrition">
       <h3>⚡ Go-to meals</h3>
       <p style="font-size:.75rem;color:var(--sub);margin-top:-6px;">Tap one to see exactly what's in it before adding.</p>
       <div class="quickgrid" id="quickGrid"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="nutrition">
       <h3>➕ Log food</h3>
       <form class="entry-form" onsubmit="return addEntry(event)">
         <input class="full" id="fName" placeholder="Food or meal name" required>
@@ -631,17 +659,26 @@
       </form>
     </div>
 
-    <div class="card" id="logCard">
+    <div class="card" data-mode="nutrition" id="logCard">
       <h3><span id="logTitle">📋 Today's log</span></h3>
       <div id="logList"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="fitness" id="fitSumCard">
+      <h3><span id="fitSumTitle">🏋️ Today's training</span></h3>
+      <div class="fit-sum">
+        <div><b id="fsCount">0</b><span>Workouts</span></div>
+        <div><b id="fsMin">0</b><span>Minutes</span></div>
+        <div><b id="fsCal">0</b><span>Cal burned</span></div>
+      </div>
+    </div>
+
+    <div class="card" data-mode="fitness">
       <h3>🏋️ Go-to workouts</h3>
       <div class="quickgrid" id="quickWorkoutGrid"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="fitness">
       <h3>💪 Log workout</h3>
       <form class="entry-form" onsubmit="return addWorkout(event)">
         <input class="full" id="wName" placeholder="Workout or exercise name" required>
@@ -667,15 +704,31 @@
       </form>
     </div>
 
-    <div class="card">
-      <h3>🏃 Today's workouts</h3>
+    <div class="card" data-mode="fitness">
+      <h3><span id="wTitle">🏃 Today's workouts</span></h3>
       <div id="workoutList"></div>
     </div>
   </section>
 
   <!-- HISTORY -->
   <section id="view-history" class="view">
-    <div class="card">
+    <div class="card" data-mode="fitness">
+      <h3>🏃 Workout history</h3>
+      <div class="tip-nav" id="fhRange" style="margin-bottom:10px;">
+        <button class="active" data-n="7" onclick="setFitRange(7)">7 days</button>
+        <button data-n="14" onclick="setFitRange(14)">14 days</button>
+        <button data-n="30" onclick="setFitRange(30)">30 days</button>
+      </div>
+      <div class="hist-stats" id="fhStats"></div>
+      <div class="hchart" id="fhChart"></div>
+      <div class="hdays" id="fhDays"></div>
+    </div>
+    <div class="card" data-mode="fitness">
+      <h3>🗓️ Workouts by day</h3>
+      <p style="font-size:.75rem;color:var(--sub);margin-top:-6px;">Edit a workout, or copy one onto today if you did it again.</p>
+      <div id="fhList"></div>
+    </div>
+    <div class="card" data-mode="nutrition">
       <h3>📈 Calories by day</h3>
       <div class="tip-nav" id="histRange" style="margin-bottom:10px;">
         <button class="active" data-n="7" onclick="setHistoryRange(7)">7 days</button>
@@ -693,7 +746,7 @@
       </div>
       <div class="hist-detail" id="histDetail"></div>
     </div>
-    <div class="card">
+    <div class="card" data-mode="nutrition">
       <h3>🗓️ Daily totals</h3>
       <p style="font-size:.75rem;color:var(--sub);margin-top:-6px;">Tap a day to see its meals, macros and workouts.</p>
       <div class="history-list" id="historyList"></div>
@@ -737,7 +790,7 @@
       <div id="weightChart"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="fitness">
       <h3>🔥 Calorie & activity balance</h3>
       <div class="tip-nav" style="margin-bottom:12px;">
         <button id="periodBtn1" onclick="setProgressPeriod(1)">Day</button>
@@ -752,7 +805,7 @@
       <p style="font-size:.8rem;color:var(--sub);margin-top:8px;" id="pbEstimate"></p>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="fitness">
       <h3>📅 Workout calendar</h3>
       <div class="tip-nav" style="margin-bottom:10px;">
         <button onclick="calendarPrevMonth()">◀ Prev</button>
@@ -769,7 +822,7 @@
       <div id="calendarDayDetail" style="margin-top:10px;"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-mode="fitness">
       <h3>💪 Strength trends</h3>
       <select id="exerciseSelect" class="select-like" onchange="renderExerciseTrend(this.value)"></select>
       <div id="exerciseChart"></div>
@@ -905,8 +958,8 @@
   <button class="active" data-view="today" onclick="switchTab('today')"><span class="ic">🍽️</span>Today</button>
   <button data-view="history" onclick="switchTab('history')"><span class="ic">📊</span>History</button>
   <button data-view="progress" onclick="switchTab('progress')"><span class="ic">📈</span>Progress</button>
-  <button data-view="plan" onclick="switchTab('plan')"><span class="ic">🛒</span>Plan</button>
-  <button data-view="ingredients" onclick="switchTab('ingredients')"><span class="ic">🥕</span>Ingredients</button>
+  <button class="nutri-only" data-view="plan" onclick="switchTab('plan')"><span class="ic">🛒</span>Plan</button>
+  <button class="nutri-only" data-view="ingredients" onclick="switchTab('ingredients')"><span class="ic">🥕</span>Ingredients</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1142,6 +1195,7 @@
 
     <h3 style="margin-top:20px;">💾 Backup & restore</h3>
     <p style="font-size:.78rem;color:var(--sub);margin-top:-4px;">Your data lives only in this browser. Export a backup before clearing your cache, switching browsers, or updating this file — then import it to restore everything.</p>
+    <p id="lastBackupTxt" style="font-size:.8rem;color:var(--sub);margin:0 0 6px;"></p>
     <button type="button" class="suggest-btn" onclick="exportData()">📤 Export my data (.json)</button>
     <label class="suggest-btn" style="display:block;text-align:center;cursor:pointer;">
       📥 Import backup file
@@ -1913,13 +1967,103 @@ function fmtShort(dstr){
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
 }
 
+/* ---------- Nutrition / Fitness mode ---------- */
+window._mode = 'nutrition';
+function setMode(m){
+  window._mode = (m==='fitness') ? 'fitness' : 'nutrition';
+  document.body.classList.toggle('mode-fitness', window._mode==='fitness');
+  document.body.classList.toggle('mode-nutrition', window._mode!=='fitness');
+  document.querySelectorAll('#modeBar button').forEach(b=> b.classList.toggle('active', b.dataset.m===window._mode));
+  let v = (document.querySelector('.view.active')||{}).id || 'view-today';
+  v = v.replace('view-','');
+  if(window._mode==='fitness' && (v==='plan'||v==='ingredients')) v = 'today';
+  switchTab(v);
+  renderWorkoutSection();
+  renderFitHistory();
+  updateDayBar();
+}
+function fitDayStats(dstr){
+  const l = data.workoutLogs[dstr] || [];
+  return {n:l.length, min:l.reduce((s,w)=>s+(Number(w.duration)||0),0), cal:workoutDayTotal(dstr)};
+}
+function renderFitSummary(){
+  const st = fitDayStats(currentDate);
+  const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+  set('fsCount',st.n); set('fsMin',fmtN(st.min)); set('fsCal',fmtN(st.cal));
+}
+let fitRange = 7;
+function setFitRange(n){
+  fitRange = n;
+  document.querySelectorAll('#fhRange button').forEach(b=> b.classList.toggle('active', Number(b.dataset.n)===n));
+  renderFitHistory();
+}
+function renderFitHistory(){
+  const chart = document.getElementById('fhChart');
+  if(!chart) return;
+  const dates = lastNDates(fitRange);
+  const stats = dates.map(d=>({d, ...fitDayStats(d)}));
+  const tot = stats.reduce((a,x)=>({n:a.n+x.n, min:a.min+x.min, cal:a.cal+x.cal, days:a.days+(x.n?1:0)}),{n:0,min:0,cal:0,days:0});
+  document.getElementById('fhStats').innerHTML =
+    '<b>'+tot.days+'</b> active day'+(tot.days===1?'':'s')+' · <b>'+tot.n+'</b> workout'+(tot.n===1?'':'s')+
+    ' · <b>'+fmtN(tot.min)+'</b> min · <b>'+fmtN(tot.cal)+'</b> cal burned';
+  const max = Math.max(1, ...stats.map(x=>x.cal));
+  chart.innerHTML = stats.map(x=>{
+    const h = x.cal ? Math.max(6, Math.round(x.cal/max*150)) : 4;
+    return '<div class="hcol" style="flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%;"><div class="hbar '+(x.cal?'good':'none')+'" style="height:'+h+'px;"></div></div>';
+  }).join('');
+  const days = document.getElementById('fhDays');
+  days.innerHTML = stats.map(x=>{
+    const d = new Date(x.d+'T00:00:00');
+    const lab = fitRange<=7 ? d.toLocaleDateString(undefined,{weekday:'short'}) : String(d.getDate());
+    return '<span style="flex:1;text-align:center;">'+lab+'</span>';
+  }).join('');
+  days.style.display='flex';
+  const list = document.getElementById('fhList');
+  const withW = stats.filter(x=>x.n).reverse();
+  if(!withW.length){ list.innerHTML = '<div class="empty">No workouts in this period.</div>'; return; }
+  list.innerHTML = '';
+  withW.forEach(x=>{
+    const box = document.createElement('div');
+    box.className = 'fh-day';
+    box.innerHTML = '<b>'+escapeHtml(fmtShort(x.d))+'</b> <span style="color:var(--sub);font-size:.75rem;">· '+x.cal+' cal burned</span>';
+    (data.workoutLogs[x.d]||[]).forEach(w=>{
+      let sub;
+      if(w.type==='Strength'){ sub = getSetsList(w).map(q=>q.weight+'lb×'+q.reps).join(', '); }
+      else sub = w.type+' · '+(w.duration||0)+' min';
+      const row = document.createElement('div');
+      row.className = 'entry';
+      row.innerHTML = '<div><div class="name">'+escapeHtml(w.name)+'</div><div class="macros">'+escapeHtml(sub)+'</div></div>'+
+        '<div class="right"><span class="cals">'+(Number(w.cals)||0)+' cal</span>'+
+        '<button class="del-btn" title="Edit" onclick="openWorkoutEdit(\''+x.d+'\',\''+w.id+'\')">✏️</button>'+
+        (x.d!==todayStr() ? '<button class="del-btn" title="Copy to today" onclick="copyWorkoutToToday(\''+x.d+'\',\''+w.id+'\')">📋</button>' : '')+
+        '</div>';
+      box.appendChild(row);
+    });
+    list.appendChild(box);
+  });
+}
+function copyWorkoutToToday(date, id){
+  const w = (data.workoutLogs[date]||[]).find(x=>x.id===id);
+  if(!w) return;
+  const t = todayStr();
+  const copy = JSON.parse(JSON.stringify(w));
+  copy.id = uid('w'); copy.time = Date.now();
+  if(!data.workoutLogs[t]) data.workoutLogs[t] = [];
+  data.workoutLogs[t].push(copy);
+  saveData();
+  refreshWorkoutViews(t);
+  renderFitHistory();
+  showToast(w.name+' added to today ✓');
+}
+
 /* ---------- Tabs ---------- */
 function switchTab(view){
+  if(document.body.classList.contains('reordering')) toggleReorder(false);
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+view).classList.add('active');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
   document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
-  if(view==='history') renderHistory();
+  if(view==='history'){ renderHistory(); renderFitHistory(); }
   if(view==='progress') renderProgress();
   if(view==='plan'){
     renderQuickFill();
@@ -1967,6 +2111,9 @@ function updateDayBar(){
   ban.textContent = past ? '📝 You\'re looking at '+dateLabel(currentDate)+'. Meals and workouts you add go to this day. Tap "Today" to go back.' : '';
   const label = past ? 'this day' : 'today';
   const nm = past ? fmtShort(currentDate) : '';
+  const wt=document.getElementById('wTitle'), ft=document.getElementById('fitSumTitle');
+  if(wt) wt.textContent = past ? '🏃 Workouts · '+fmtShort(currentDate) : '🏃 Today\'s workouts';
+  if(ft) ft.textContent = past ? '🏋️ Training · '+fmtShort(currentDate) : '🏋️ Today\'s training';
   document.getElementById('logTitle').textContent = past ? '📋 Log for '+nm : '📋 Today\'s log';
   document.getElementById('logSubmit').textContent = past ? 'Add to '+nm+' log' : 'Add to today\'s log';
   document.getElementById('calcAddBtn').textContent = past ? '➕ Add to '+nm+' log' : '➕ Add to today\'s log';
@@ -2778,6 +2925,7 @@ function refreshWorkoutViews(date){
   if(detail && detail.dataset.shownDate === date) showCalendarDay(date);
   renderCalendar();
   renderStrengthSection();
+  renderFitHistory();
 }
 
 function saveWorkoutEdit(){
@@ -2821,6 +2969,7 @@ function deleteWorkoutEdit(){
 
 function renderWorkoutSection(){
   renderQuickWorkoutGrid();
+  renderFitSummary();
   const log = getTodayWorkouts();
   const container = document.getElementById('workoutList');
   if(log.length===0){
@@ -3832,6 +3981,7 @@ function copyGroceryList(){
 
 /* ---------- Settings ---------- */
 function openSettings(){
+  updateBackupBanner();
   document.getElementById('setGoal').value = data.goal;
   document.getElementById('setP').value = data.macroSplit.p;
   document.getElementById('setC').value = data.macroSplit.c;
@@ -4017,6 +4167,14 @@ function updateBackupBanner(){
   if(!el) return;
   const last = data.lastBackup || 0;
   el.style.display = (Date.now() - last > 7*86400000) ? 'block' : 'none';
+  const t = document.getElementById('lastBackupTxt');
+  if(t){
+    if(!last) t.textContent = 'Last backup: never — tap below to save one.';
+    else {
+      const days = Math.floor((Date.now()-last)/86400000);
+      t.textContent = 'Last backup: '+fmtShort(fmtDate(new Date(last)))+' ('+(days<1?'today':days+' day'+(days===1?'':'s')+' ago')+')'+(days>7?' — due for a new one':'');
+    }
+  }
 }
 
 function exportData(){
@@ -4524,6 +4682,72 @@ resetSetRows();
 /* ---------- Collapsible sections (remembered on this device) ---------- */
 function loadCollapsed(){ try{ return JSON.parse(localStorage.getItem('sb_collapsed')||'{}')||{}; }catch(e){ return {}; } }
 function saveCollapsed(m){ try{ localStorage.setItem('sb_collapsed', JSON.stringify(m)); }catch(e){} }
+/* ---------- Reorder sections ---------- */
+function loadOrder(){ try{ return JSON.parse(localStorage.getItem('sb_order')||'{}')||{}; }catch(e){ return {}; } }
+function saveOrder(m){ try{ localStorage.setItem('sb_order', JSON.stringify(m)); }catch(e){} }
+function orderKey(card){
+  const h = card.querySelector(':scope>h3');
+  return card.id || (h && ((h.firstElementChild && h.firstElementChild.id) || h.firstChild.textContent.trim())) || '';
+}
+function movableCards(sec){ return [...sec.querySelectorAll(':scope>.card')].filter(c=>c.querySelector(':scope>h3') && orderKey(c)); }
+function applyOrder(){
+  const saved = loadOrder();
+  document.querySelectorAll('section.view').forEach(sec=>{
+    const order = saved[sec.id]; if(!order || !order.length) return;
+    const cards = movableCards(sec);
+    const idx = c=>{ const i = order.indexOf(orderKey(c)); return i<0 ? 1e6 : i; };
+    const sorted = cards.map((c,i)=>({c,i})).sort((a,b)=> (idx(a.c)-idx(b.c)) || (a.i-b.i)).map(x=>x.c);
+    const marks = cards.map(c=>{ const m = document.createComment(''); c.parentNode.insertBefore(m,c); return m; });
+    sorted.forEach((c,i)=>{ marks[i].parentNode.insertBefore(c, marks[i]); });
+    marks.forEach(m=>m.remove());
+  });
+}
+function moveCard(card, dir){
+  const sec = card.closest('section.view');
+  const mode = card.dataset.mode;
+  let n = card;
+  do { n = dir<0 ? n.previousElementSibling : n.nextElementSibling; }
+  while(n && !(n.classList.contains('card') && n.querySelector(':scope>h3') && orderKey(n) && (!n.dataset.mode || !mode || n.dataset.mode===mode)));
+  if(!n) return;
+  if(dir<0) sec.insertBefore(card, n); else sec.insertBefore(card, n.nextElementSibling);
+  const m = loadOrder(); m[sec.id] = movableCards(sec).map(orderKey); saveOrder(m);
+  updateMoveButtons(sec);
+  if(card.scrollIntoView) card.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+function updateMoveButtons(sec){
+  const cards = movableCards(sec);
+  cards.forEach(c=>{
+    const same = cards.filter(x=> !x.dataset.mode || !c.dataset.mode || x.dataset.mode===c.dataset.mode);
+    const i = same.indexOf(c), box = c.querySelector(':scope>.mv'); if(!box) return;
+    box.children[0].disabled = i<=0; box.children[1].disabled = i>=same.length-1;
+  });
+}
+function initReorder(){
+  document.querySelectorAll('section.view').forEach(sec=>{
+    movableCards(sec).forEach(c=>{
+      if(c.querySelector(':scope>.mv')) return;
+      const box = document.createElement('div'); box.className = 'mv';
+      [['▲',-1,'Move up'],['▼',1,'Move down']].forEach(([t,d,l])=>{
+        const b = document.createElement('button'); b.type='button'; b.textContent=t; b.setAttribute('aria-label',l);
+        b.onclick = e=>{ e.stopPropagation(); moveCard(c,d); };
+        box.appendChild(b);
+      });
+      c.insertBefore(box, c.firstChild);
+    });
+    updateMoveButtons(sec);
+  });
+}
+function toggleReorder(on){
+  const v = (on===undefined) ? !document.body.classList.contains('reordering') : on;
+  document.body.classList.toggle('reordering', v);
+  document.querySelectorAll('.reorder-btn').forEach(b=> b.textContent = v ? '✓ Done' : '↕ Reorder');
+  if(v) initReorder();
+}
+function resetOrder(){
+  if(!confirm('Put the sections on every tab back in their original order?')) return;
+  try{ localStorage.removeItem('sb_order'); }catch(e){}
+  location.reload();
+}
 function cardKey(h){ const t = h.closest('section.view'); return (t && t.id ? t.id : '')+':'+h.firstChild.textContent.trim(); }
 function initCollapsible(){
   const saved = loadCollapsed();
@@ -4560,12 +4784,19 @@ function initCollapsible(){
       };
       bar.appendChild(b);
     });
+    const rb = document.createElement('button');
+    rb.type='button'; rb.className='reorder-btn'; rb.textContent='↕ Reorder'; rb.onclick=()=>toggleReorder();
+    bar.insertBefore(rb, bar.firstChild);
+    const xb = document.createElement('button');
+    xb.type='button'; xb.className='reset-order-btn'; xb.textContent='Reset order'; xb.onclick=resetOrder;
+    bar.appendChild(xb);
     t.insertBefore(bar, t.firstChild);
   });
 }
 labelize(document);
 applyTracking();
 initCollapsible();
+applyOrder();
 document.getElementById('ingredientRows').addEventListener('input', recalcMealTotals);
 document.getElementById('ingredientRows').addEventListener('input', ingRowInput);
 document.getElementById('ingredientRows').addEventListener('change', ingRowInput);
