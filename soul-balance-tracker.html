@@ -99,10 +99,19 @@
   .fh-day{border-top:1px solid #2a3768;padding:8px 0;}
   .fh-day>b{font-size:.82rem;}
   .fh-day .entry{padding:6px 0;}
-  #view-wplan input,#view-wplan select{background:var(--card2);border:1px solid #2c3968;border-radius:10px;padding:9px 10px;color:var(--text);font-size:16px;box-sizing:border-box;}
+  #view-wplan input,#view-wplan select,#wpSessionCard input,#wpSessionCard select{background:var(--card2);border:1px solid #2c3968;border-radius:10px;padding:9px 10px;color:var(--text);font-size:16px;box-sizing:border-box;}
   #view-wplan input[type=date]{min-width:0;}
-  #view-wplan button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.c){width:100%;}
+  #view-wplan button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.c),#wpSessionCard button:not(.wp-link):not(.del-btn):not(.suggest-btn):not(.wp-chip){width:100%;}
   .wp-note{font-size:.82rem;margin:0 0 10px;}
+  .wp-lbl{display:block;font-size:.72rem;color:var(--sub);}
+  .wp-lbl select{display:block;width:100%;margin-top:3px;}
+  .wp-order{font-size:.8rem;margin:10px 0 4px;color:var(--sub);}
+  .wp-order b{color:var(--text);}
+  .wp-grp{margin:14px 0 2px;padding:6px 10px;border-radius:10px;background:linear-gradient(120deg,rgba(255,122,89,.25),rgba(139,92,246,.25));font-weight:800;font-size:.85rem;}
+  .wp-chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px;}
+  .wp-chip{background:#1c2750;border:1px solid #2c3968;color:var(--text);border-radius:999px;padding:5px 10px;font-size:.74rem;cursor:pointer;}
+  .wp-picklabel{font-size:.7rem;color:var(--sub);margin-top:6px;}
+  .wp-cname{font-weight:700;width:100%;}
   .wp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .wp-grid3{display:grid;grid-template-columns:.7fr 1fr 1fr;gap:8px;}
   .wp-grid2 label,.wp-grid3 label,.wp-edit label{display:block;font-size:.72rem;color:var(--sub);}
@@ -132,7 +141,7 @@
   .wp-tbl .wp-ex{text-align:left;position:sticky;left:0;background:var(--card);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;}
   .wp-tbl th:first-child{text-align:left;position:sticky;left:0;background:var(--card);}
   .wp-tbl .up{color:var(--good);} .wp-tbl .dn{color:var(--yellow);} .wp-tbl .mut{color:var(--sub);}
-  #view-wplan input[type=checkbox]{width:22px;height:22px;padding:0;flex:none;}
+  #view-wplan input[type=checkbox],#wpSessionCard input[type=checkbox]{width:22px;height:22px;padding:0;flex:none;}
   .wp-chk{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text);}
   .wp-tbl tr.wp-cur td{background:rgba(45,212,191,.12);}
   .wp-day{border-top:1px solid #2a3768;padding:8px 0;}
@@ -716,13 +725,18 @@
       <div id="fsPlan" style="margin-top:10px;font-size:.8rem;"></div>
     </div>
 
+    <div class="card" data-mode="fitness" id="wpSessionCard">
+      <h3>📋 Session from your plan</h3>
+      <div id="wpSession"></div>
+    </div>
+
     <div class="card" data-mode="fitness">
       <h3>🏋️ Go-to workouts</h3>
       <div class="quickgrid" id="quickWorkoutGrid"></div>
     </div>
 
     <div class="card" data-mode="fitness">
-      <h3>💪 Log workout</h3>
+      <h3>➕ Extra workout (outside the plan)</h3>
       <form class="entry-form" onsubmit="return addWorkout(event)">
         <input class="full" id="wName" placeholder="Workout or exercise name" required>
         <select id="wType" data-label="Workout type" class="full" onchange="toggleStrengthFields()">
@@ -1001,10 +1015,6 @@
     <div class="card" id="wpSetupCard">
       <h3>⚙️ Plan setup</h3>
       <div id="wpSetup"></div>
-    </div>
-    <div class="card" id="wpSessionCard">
-      <h3>🏋️ Log a session</h3>
-      <div id="wpSession"></div>
     </div>
     <div class="card" id="wpAttendCard">
       <h3>📅 Gym attendance</h3>
@@ -2042,11 +2052,11 @@ function fmtShort(dstr){
 
 
 function buildWorkoutPlan(){
-  const L = (name,sets,reps,start,notes)=>({id:uid('px'),kind:'lift',name,sets,reps,start:String(start==null?'':start),notes:notes||''});
-  const B = (name,sets,reps,start,notes)=>({id:uid('px'),kind:'bw',name,sets,reps,start:String(start==null?'':start),notes:notes||''});
-  const C = (name,dur,pace,notes)=>({id:uid('px'),kind:'cardio',name,sets:0,dur,reps:pace||'',start:'',notes:notes||''});
+  const L = (name,sets,reps,start,notes)=>({id:uid('px'),kind:'lift',grp:wpGuessGrp(name),name,sets,reps,start:String(start==null?'':start),notes:notes||''});
+  const B = (name,sets,reps,start,notes)=>({id:uid('px'),kind:'bw',grp:wpGuessGrp(name),name,sets,reps,start:String(start==null?'':start),notes:notes||''});
+  const C = (name,dur,pace,notes)=>({id:uid('px'),kind:'cardio',grp:'cardio',name,sets:0,dur,reps:pace||'',start:'',notes:notes||''});
   return {
-    ver:2, startDate:null, weeks:4,
+    ver:3, startDate:null, weeks:4,
     tips:[
       'Every set: stop with 1–3 reps left in the tank. Beat last week by a rep or a little weight.',
       'Log your top set each week. Strength holding steady on a cut = winning.',
@@ -2077,7 +2087,7 @@ function buildWorkoutPlan(){
         L('Incline DB curls',3,'10–12','20–25 each','Lean back on a 45° bench, arms hanging. Deep stretch, slow lowering.'),
         L('Hammer curls',2,'8–10','30 each'),
         L('Rear delt machine fly',2,'15','light','Optional. Rounds out shoulders from behind.'),
-        C('Indoor cycle (after lifting)','20–30 min','zone 2','Easy pace. From week 4: once a week, 30s hard / 90s easy x 8.')]},
+        C('Indoor cycle','20–30 min','zone 2','Easy pace. From week 4: once a week, 30s hard / 90s easy x 8.')]},
       {id:uid('pd'),name:'Day 3 – Legs',rest:false,ex:[
         L('Seated leg press',4,'12–20','190–220'),
         L('Romanian deadlift',3,'8–10','135','Hinge at hips, slight knee bend, feel hamstrings stretch. Start light.'),
@@ -2097,7 +2107,7 @@ function buildWorkoutPlan(){
         L('Seated DB lateral raises',3,'12–15','12.5–15'),
         L('Cable tricep pulldown',2,'12','40'),
         L('Hammer curls',2,'10','30 each','Biceps now trained 2x/week, ~13 sets total.'),
-        C('Stairmaster (after lifting)','15–20 min','steady','Or make this your weekly interval session.'),
+        C('Stairmaster','15–20 min','steady','Or make this your weekly interval session.'),
         B('Dead bugs',2,'10 each side','bodyweight','Slow, lower back pressed into the floor.')]},
       {id:uid('pd'),name:'Day 6 – Lower',rest:false,ex:[
         L('Hack squat',3,'10–12','moderate','Or swap for leg press if no hack squat.'),
@@ -2119,6 +2129,15 @@ function wplan(){
   else if((p.ver||1)<2){
     const n = buildWorkoutPlan(); n.startDate = p.startDate||null; n.weeks = p.weeks||4;
     data.workoutPlan = n;
+    try{ saveData(); }catch(e){}
+  }
+  if((data.workoutPlan.ver||1)<3){
+    data.workoutPlan.days.forEach(d=>d.ex.forEach(e=>{
+      if(!e.grp) e.grp = e.kind==='cardio' ? 'cardio' : wpGuessGrp(e.name);
+      if(e.name==='Indoor cycle (after lifting)') e.name = 'Indoor cycle';
+      if(e.name==='Stairmaster (after lifting)') e.name = 'Stairmaster';
+    }));
+    data.workoutPlan.ver = 3;
     try{ saveData(); }catch(e){}
   }
   if(!Array.isArray(data.workoutPlan.running)) data.workoutPlan.running = buildWorkoutPlan().running;
@@ -2148,12 +2167,19 @@ function topSet(sets){
   (sets||[]).forEach(s=>{ if(!b || s.w>b.w || (s.w===b.w && s.r>b.r)) b = s; });
   return b;
 }
-function wpDateStr(){ const t = todayStr(); let d = window._wpDate || t; if(d>t) d = t; return d; }
-function setWpDate(v){ window._wpDate = v || null; window._wpDay = null; renderWpSession(); }
+function wpGuessGrp(n){ return /crunch|knee raise|dead bug|pallof|plank|\babs?\b|sit-?up|leg raise|core/i.test(n||'') ? 'abs' : 'lift'; }
+function wpGrp(e){ return e.grp || (e.kind==='cardio' ? 'cardio' : wpGuessGrp(e.name)); }
+const WP_GRP_RANK = {cardio:0, lift:1, abs:2};
+const WP_CARDIO_PICKS = ['Run','Walk','Incline walk','Bike','Stairmaster','Elliptical','Rowing','Swim'];
+function wpDirty(){ window._wpStale = true; }
+function wpDateStr(){ const t = todayStr(); let d = currentDate || t; if(d>t) d = t; return d; }
 function setWpDay(v){ window._wpDay = Number(v); renderWpSession(); }
+function wpSessionIfStale(){
+  if(window._wpStale || window._wpRenderedFor!==wpDateStr()) renderWpSession();
+}
 
 function renderWorkoutPlan(){
-  renderWpSetup(); renderWpSession(); renderWpAttend(); renderWpProg(); renderWpRun(); renderWpEdit();
+  renderWpSetup(); renderWpAttend(); renderWpProg(); renderWpRun(); renderWpEdit();
 }
 
 /* --- setup --- */
@@ -2162,7 +2188,7 @@ function renderWpSetup(){
   const p = wplan(), pos = planPos(todayStr());
   let h = '';
   if(!p.startDate){
-    h += '<p class="wp-note">Pick the day you do <b>Day 1</b>. The plan then repeats every 7 days, so the app always knows which day it is.</p>';
+    h += '<p class="wp-note">Pick the day you do <b>Day 1</b>. The plan then repeats every 7 days, so the app always knows which day it is. You log each session on the <b>Today</b> tab.</p>';
   } else {
     const d = p.days[pos.idx];
     h += '<p class="wp-note">'+(pos.before ? 'Plan starts '+escapeHtml(fmtShort(p.startDate))+'.' :
@@ -2181,7 +2207,7 @@ function wpSaveSetup(){
   p.startDate = st;
   p.weeks = Math.max(1, Math.min(52, Math.round(Number(document.getElementById('wpWeeks').value)||4)));
   window._wpDay = null;
-  saveData(); renderWorkoutPlan(); renderFitSummary();
+  wpDirty(); saveData(); renderWorkoutPlan(); renderFitSummary();
   showToast('Plan saved ✓');
 }
 
@@ -2189,19 +2215,37 @@ function wpSaveSetup(){
 function fmtSet(s, unit){ return s.w ? s.w+'×'+s.r : s.r+(unit||' reps'); }
 function unitOf(ex){ return /sec/i.test(ex.reps||'') ? ' sec' : ' reps'; }
 function wpRunHint(week){
-  const R = wplan().running||[]; const i = wpRunStage(week);
+  const R = wplan().running || []; const i = wpRunStage(week);
   return i>=0 ? R[i] : null;
+}
+function wpChips(k){
+  return '<div class="wp-chips">'+WP_CARDIO_PICKS.map(n=>'<button type="button" class="wp-chip" onclick="wpSetCardio(\''+k+'\',\''+n+'\')">'+n+'</button>').join('')+'</div>';
+}
+function wpSetCardio(k, name){ const el = document.getElementById('wpcn_'+k); if(el) el.value = name; }
+function wpCardioHtml(k, name, meta, notes, hint, min, done, extra){
+  return '<div class="wpex'+(extra?' wpxblk':'')+'" data-k="'+k+'">'+
+    '<input class="wp-cname" id="wpcn_'+k+'" value="'+wpq(name)+'" aria-label="Cardio">'+
+    (meta?'<div class="wp-meta" style="margin:4px 0 0;">Plan: '+escapeHtml(meta)+'</div>':'')+
+    (notes?'<div class="wp-exnote">'+escapeHtml(notes)+'</div>':'')+
+    (hint?'<div class="wp-last">🏃 This week ('+escapeHtml(hint.weeks)+'): '+escapeHtml(hint.run)+' · '+escapeHtml(hint.total)+'</div>':'')+
+    '<div class="wp-picklabel">Pick your own:</div>'+wpChips(k)+
+    '<div class="wprow"><input id="wpc_'+k+'" type="number" inputmode="numeric" min="0" placeholder="minutes" value="'+(min?min:'')+'">'+
+    '<label class="wp-chk"><input type="checkbox" id="wpcd_'+k+'"'+(done?' checked':'')+'> Done</label>'+
+    (extra?'<button type="button" class="del-btn" title="Remove" onclick="this.closest(\'.wpxblk\').remove()">✕</button>':'')+'</div></div>';
 }
 function wpCardioBlock(ex, i, sv, week){
   const h = /run\/walk/i.test(ex.name) ? wpRunHint(week) : null;
-  return '<div class="wpex"><b>'+escapeHtml(ex.name)+'</b> <span class="wp-meta">'+escapeHtml((ex.dur||'')+(ex.reps?' · '+ex.reps:''))+'</span>'+
-    (ex.notes?'<div class="wp-exnote">'+escapeHtml(ex.notes)+'</div>':'')+
-    (h?'<div class="wp-last">🏃 This week ('+escapeHtml(h.weeks)+'): '+escapeHtml(h.run)+' · '+escapeHtml(h.total)+'</div>':'')+
-    '<div class="wprow"><input id="wpc_'+i+'" type="number" inputmode="numeric" min="0" placeholder="minutes" value="'+(sv&&sv.min?sv.min:'')+'">'+
-    '<label class="wp-chk"><input type="checkbox" id="wpcd_'+i+'"'+(sv?' checked':'')+'> Done</label></div></div>';
+  return wpCardioHtml(String(i), sv ? sv.name : ex.name, (ex.dur||'')+(ex.reps?' · '+ex.reps:''), ex.notes, h, sv&&sv.min, !!sv, false);
+}
+function wpAddExtra(){
+  const box = document.getElementById('wpExtra'); if(!box) return;
+  window._wpXn = (window._wpXn||0)+1;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = wpCardioHtml('x'+window._wpXn+'_'+Date.now()%100000, '', '', '', null, 0, false, true);
+  box.appendChild(tmp.firstChild);
 }
 function wpExBlock(ex, i, saved, date, week){
-  const sv = saved && ((saved.ex||[]).find(x=>x.id===ex.id) || (saved.ex||[]).find(x=>exKey(x.name)===exKey(ex.name)));
+  const sv = saved && ((saved.ex||[]).find(x=>x.id===ex.id) || (saved.ex||[]).find(x=>!x.extra && exKey(x.name)===exKey(ex.name)));
   if(ex.kind==='cardio') return wpCardioBlock(ex, i, sv, week);
   const last = wpLast(ex.name, date);
   const n = Math.max(1, Math.min(5, Number(ex.sets)||3), sv ? Math.min(5,(sv.sets||[]).length) : 0);
@@ -2249,27 +2293,48 @@ function wpFillLast(i){
 }
 function renderWpSession(){
   const el = document.getElementById('wpSession'); if(!el) return;
-  const p = wplan(), t = todayStr(), date = wpDateStr();
+  const p = wplan(), date = wpDateStr();
+  if(window._wpRenderedFor!==date) window._wpDay = null;
+  window._wpRenderedFor = date; window._wpStale = false;
   const saved = psess()[date];
   const pos = planPos(date);
-  let h = '<div class="wp-grid2"><label>Date<input type="date" id="wpDate" max="'+t+'" value="'+date+'" onchange="setWpDate(this.value)"></label>'+
-          '<label>Plan day<select id="wpDaySel" onchange="setWpDay(this.value)">';
   let idx = (window._wpDay!=null) ? window._wpDay : (saved ? saved.day : (pos ? pos.idx : 0));
   if(!(idx>=0 && idx<7)) idx = 0;
   window._wpCurIdx = idx;
-  p.days.forEach((d,k)=>{ h += '<option value="'+k+'"'+(k===idx?' selected':'')+'>'+escapeHtml(d.name)+'</option>'; });
-  h += '</select></label></div>';
-  if(!p.startDate) h += '<p class="wp-note" style="color:var(--yellow);">Set your Day 1 date in Plan setup above so the app can follow the schedule for you.</p>';
-  else if(pos && pos.before) h += '<p class="wp-note">Your plan starts '+escapeHtml(fmtShort(p.startDate))+' — pick any day to log early.</p>';
-  else if(pos) h += '<p class="wp-note">Week '+pos.week+' · scheduled: <b>'+escapeHtml(p.days[pos.idx].name)+'</b>'+(pos.idx!==idx?' <span style="color:var(--sub)">(you picked a different day)</span>':'')+'</p>';
   const day = p.days[idx];
   const week = (pos && !pos.before) ? pos.week : 1;
+  let h = '';
+  if(!p.startDate) h += '<p class="wp-note" style="color:var(--yellow);">Set your Day 1 date so the plan follows the calendar for you. <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Open Workout plan →</button></p>';
+  else if(pos && pos.before) h += '<p class="wp-note">Your plan starts '+escapeHtml(fmtShort(p.startDate))+' — you can still log any day early.</p>';
+  else if(pos) h += '<p class="wp-note">Week <b>'+pos.week+'</b> · scheduled: <b>'+escapeHtml(p.days[pos.idx].name)+'</b></p>';
+  h += '<label class="wp-lbl">Plan day <select id="wpDaySel" onchange="setWpDay(this.value)">'+
+    p.days.map((d,k)=>'<option value="'+k+'"'+(k===idx?' selected':'')+'>'+escapeHtml(d.name)+(pos&&!pos.before&&k===pos.idx?' (scheduled)':'')+'</option>').join('')+'</select></label>';
+  h += '<p class="wp-order">Do it in this order: <b>1 Cardio</b> → <b>2 Lifting</b> → <b>3 Abs</b></p>';
   window._wpLastMap = {};
-  day.ex.forEach((ex,i)=>{
-    if(ex.kind!=='cardio'){ const l = wpLast(ex.name,date); if(l) window._wpLastMap[i] = l.sets; }
-    h += wpExBlock(ex,i,saved,date,week);
+  const order = day.ex.map((e,i)=>({e,i,g:wpGrp(e)})).sort((a,b)=>(WP_GRP_RANK[a.g]-WP_GRP_RANK[b.g])||(a.i-b.i));
+  const labels = {cardio:'1 · Cardio', lift:'2 · Lifting', abs:'3 · Abs'};
+  const extras = saved ? (saved.ex||[]).filter(e=>e.extra) : [];
+  let wroteCardio = false;
+  const cardioHead = '<div class="wp-grp">'+labels.cardio+'</div>';
+  const extraBlock = ()=> '<div id="wpExtra">'+extras.map((e,k)=>wpCardioHtml('x'+k+'_s', e.name, '', '', null, e.min, true, true)).join('')+'</div>'+
+    '<button type="button" class="wp-link" onclick="wpAddExtra()">+ add another cardio</button>';
+  let lastG = null;
+  order.forEach(o=>{
+    if(o.g!==lastG){
+      if(lastG==='cardio') h += extraBlock();
+      if(o.g==='cardio'){ h += cardioHead; wroteCardio = true; }
+      else {
+        if(!wroteCardio){ h += cardioHead+'<div class="wp-exnote">Nothing planned today — add cardio if you want it.</div>'+extraBlock(); wroteCardio = true; }
+        h += '<div class="wp-grp">'+labels[o.g]+'</div>';
+      }
+      lastG = o.g;
+    }
+    if(o.g!=='cardio'){ const l = wpLast(o.e.name,date); if(l) window._wpLastMap[o.i] = l.sets; }
+    h += wpExBlock(o.e,o.i,saved,date,week);
   });
-  h += '<div class="wp-grid2"><label>Session minutes (optional)<input type="number" id="wpDur" min="0" inputmode="numeric" value="'+(saved&&saved.dur?saved.dur:'')+'"></label>'+
+  if(lastG==='cardio') h += extraBlock();
+  if(!wroteCardio) h = h + cardioHead + extraBlock();
+  h += '<div class="wp-grid2" style="margin-top:12px;"><label>Lifting minutes (optional)<input type="number" id="wpDur" min="0" inputmode="numeric" value="'+(saved&&saved.dur?saved.dur:'')+'"></label>'+
     '<label>Calories burned (optional)<input type="number" id="wpCals" min="0" inputmode="numeric" value="'+(saved&&saved.cals?saved.cals:'')+'"></label></div>'+
     '<button type="button" onclick="saveWpSession()" style="margin-top:10px;">'+(saved?'💾 Update session':'💾 Save session')+'</button>';
   if(saved) h += '<button type="button" class="suggest-btn" style="margin-top:8px;" onclick="deleteWpSession()">🗑️ Remove this session</button>';
@@ -2299,8 +2364,10 @@ function wpSyncLogs(date, sess){
 function wpAfterChange(date){
   saveData();
   refreshWorkoutViews(date);
+  renderWpSession();
   renderWorkoutPlan();
   renderFitSummary();
+  renderWorkoutSection();
 }
 function saveWpSession(){
   const p = wplan(), date = wpDateStr(), idx = window._wpCurIdx, day = p.days[idx];
@@ -2312,7 +2379,8 @@ function saveWpSession(){
     if(e.kind==='cardio'){
       const mn = Number((document.getElementById('wpc_'+i)||{}).value)||0;
       const dn = !!(document.getElementById('wpcd_'+i)||{}).checked;
-      if(mn>0 || dn) ex.push({id:e.id, name:e.name, kind:'cardio', min:mn, sets:[], done:true});
+      const nm = ((document.getElementById('wpcn_'+i)||{}).value||'').trim() || e.name;
+      if(mn>0 || dn) ex.push({id:e.id, name:nm, kind:'cardio', min:mn, sets:[], done:true});
       return;
     }
     const sets = [];
@@ -2322,6 +2390,13 @@ function saveWpSession(){
       sets.push({w:Number(w)||0, r:Number(rp)||0});
     });
     if(sets.length) ex.push({id:e.id, name:e.name, kind:e.kind, sets});
+  });
+  document.querySelectorAll('#wpExtra .wpxblk').forEach(b=>{
+    const k = b.dataset.k;
+    const mn = Number((document.getElementById('wpc_'+k)||{}).value)||0;
+    const dn = !!(document.getElementById('wpcd_'+k)||{}).checked;
+    const nm = ((document.getElementById('wpcn_'+k)||{}).value||'').trim() || 'Cardio';
+    if(mn>0 || dn) ex.push({id:uid('xc'), name:nm, kind:'cardio', min:mn, sets:[], done:true, extra:true});
   });
   if(!ex.length){ showToast('Enter at least one set (or mark cardio done) first'); return; }
   const anyLift = ex.some(e=>e.kind!=='cardio');
@@ -2387,10 +2462,9 @@ function renderWpAttend(){
     '<p style="font-size:.72rem;color:var(--sub);margin:6px 0 0;">Tap a day to log or edit it.</p>';
 }
 function wpPickDate(d){
-  window._wpDate = d; window._wpDay = null;
-  renderWpSession();
-  const c = document.getElementById('wpSessionCard');
-  if(c){ c.classList.remove('collapsed'); if(c.scrollIntoView) c.scrollIntoView({behavior:'smooth',block:'start'}); }
+  setViewDate(d);
+  switchTab('today');
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 /* --- weight progression --- */
@@ -2453,7 +2527,7 @@ function renderWpProg(){
 function wpRenameDay(i){
   const p = wplan(), n = prompt('Day name', p.days[i].name);
   if(n===null || !n.trim()) return;
-  p.days[i].name = n.trim(); saveData(); renderWorkoutPlan();
+  p.days[i].name = n.trim(); wpDirty(); saveData(); renderWorkoutPlan();
 }
 function wpAddEx(i){
   const p = wplan(), e = {id:uid('px'), kind:'lift', name:'New exercise', sets:3, reps:'10', start:'', notes:''};
@@ -2474,6 +2548,7 @@ function wpReadEdit(f){
     f.ex.sets = Math.max(1, Math.min(5, Math.round(Number(g('wpe_sets'))||3)));
     f.ex.reps = (g('wpe_reps')||'').trim(); f.ex.start = (g('wpe_start')||'').trim();
   }
+  if(f.ex.kind==='cardio') f.ex.grp = 'cardio'; else { const gg = g('wpe_grp'); f.ex.grp = gg || f.ex.grp || wpGuessGrp(f.ex.name); if(f.ex.grp==='cardio') f.ex.grp = wpGuessGrp(f.ex.name); }
   f.ex.notes = (g('wpe_notes')||'').trim();
 }
 function wpSetKind(id, kind){
@@ -2481,7 +2556,7 @@ function wpSetKind(id, kind){
   wpReadEdit(f);
   if(kind==='cardio' && f.ex.kind!=='cardio'){ f.ex.reps = ''; f.ex.dur = f.ex.dur||''; }
   if(kind!=='cardio' && f.ex.kind==='cardio'){ f.ex.reps = '10'; f.ex.start = ''; }
-  f.ex.kind = kind;
+  f.ex.kind = kind; f.ex.grp = kind==='cardio' ? 'cardio' : (f.ex.grp && f.ex.grp!=='cardio' ? f.ex.grp : wpGuessGrp(f.ex.name));
   if(kind!=='cardio' && !f.ex.sets) f.ex.sets = 3;
   renderWpEdit();
 }
@@ -2489,23 +2564,23 @@ function wpSaveEx(id){
   const f = wpFindEx(id); if(!f) return;
   if(!(document.getElementById('wpe_name').value||'').trim()){ showToast('Give it a name'); return; }
   wpReadEdit(f);
-  window._wpEditing = null; saveData(); renderWorkoutPlan();
+  window._wpEditing = null; wpDirty(); saveData(); renderWorkoutPlan();
 }
 function wpDelEx(id){
   const f = wpFindEx(id); if(!f) return;
   if(!confirm('Remove '+f.ex.name+' from '+wplan().days[f.day].name+'? Your logged history stays.')) return;
-  wplan().days[f.day].ex.splice(f.k,1); window._wpEditing = null; saveData(); renderWorkoutPlan();
+  wplan().days[f.day].ex.splice(f.k,1); window._wpEditing = null; wpDirty(); saveData(); renderWorkoutPlan();
 }
 function wpMoveEx(id, dir){
   const f = wpFindEx(id); if(!f) return;
   const a = wplan().days[f.day].ex, j = f.k+dir; if(j<0 || j>=a.length) return;
-  [a[f.k],a[j]] = [a[j],a[f.k]]; saveData(); renderWpEdit();
+  [a[f.k],a[j]] = [a[j],a[f.k]]; wpDirty(); saveData(); renderWpEdit();
 }
 function wpResetPlan(){
   if(!confirm('Put the whole plan back to the original Angel\'s Cut? Your start date and logged sessions are kept.')) return;
   const st = wplan().startDate, wk = wplan().weeks;
   data.workoutPlan = buildWorkoutPlan(); data.workoutPlan.startDate = st; data.workoutPlan.weeks = wk;
-  window._wpEditing = null; saveData(); renderWorkoutPlan(); showToast('Plan reset');
+  window._wpEditing = null; wpDirty(); saveData(); renderWorkoutPlan(); showToast('Plan reset');
 }
 function wpq(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 function renderWpEdit(){
@@ -2521,6 +2596,7 @@ function renderWpEdit(){
             '<option value="lift"'+(e.kind==='lift'?' selected':'')+'>Weights (sets × reps)</option>'+
             '<option value="bw"'+(e.kind==='bw'?' selected':'')+'>Bodyweight / timed</option>'+
             '<option value="cardio"'+(cardio?' selected':'')+'>Cardio</option></select></label>'+
+          (cardio ? '' : '<label>Section<select id="wpe_grp"><option value="lift"'+(wpGrp(e)==='lift'?' selected':'')+'>Lifting</option><option value="abs"'+(wpGrp(e)==='abs'?' selected':'')+'>Abs / core</option></select></label>')+
           '<label>Exercise<input id="wpe_name" value="'+wpq(e.name)+'"></label>'+
           (cardio ?
             '<div class="wp-grid2"><label>Target time<input id="wpe_dur" value="'+wpq(e.dur||'')+'"></label>'+
@@ -2533,7 +2609,7 @@ function renderWpEdit(){
           '<button type="button" class="suggest-btn" onclick="wpEditEx(\''+e.id+'\')">Cancel</button>'+
           '<button type="button" class="suggest-btn" onclick="wpDelEx(\''+e.id+'\')">Delete</button></div></div>';
       } else {
-        const sub = e.kind==='cardio' ? (e.dur||'')+(e.reps?' · '+e.reps:'') : (e.sets||'?')+' × '+(e.reps||'')+(e.start?' · '+e.start:'');
+        const sub = (wpGrp(e)==='cardio'?'Cardio · ':wpGrp(e)==='abs'?'Abs · ':'')+(e.kind==='cardio' ? (e.dur||'')+(e.reps?' · '+e.reps:'') : (e.sets||'?')+' × '+(e.reps||'')+(e.start?' · '+e.start:''));
         h += '<div class="entry"><div><div class="name">'+escapeHtml(e.name)+'</div><div class="macros">'+escapeHtml(sub)+'</div></div>'+
           '<div class="right"><button class="del-btn" title="Move up" onclick="wpMoveEx(\''+e.id+'\',-1)">▲</button><button class="del-btn" title="Move down" onclick="wpMoveEx(\''+e.id+'\',1)">▼</button>'+
           '<button class="del-btn" title="Edit" onclick="wpEditEx(\''+e.id+'\')">✏️</button></div></div>';
@@ -2603,13 +2679,13 @@ function renderFitSummary(){
   set('fsCount',st.n); set('fsMin',fmtN(st.min)); set('fsCal',fmtN(st.cal));
   const fp = document.getElementById('fsPlan');
   if(fp){
-    const pl = wplan(), pos = planPos(todayStr());
+    const pl = wplan(), dd = wpDateStr(), pos = planPos(dd);
     if(!pl.startDate) fp.innerHTML = '📋 <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Set up your workout plan →</button>';
     else if(pos.before) fp.innerHTML = '📋 Plan starts '+escapeHtml(fmtShort(pl.startDate));
     else {
-      const ss = psess()[todayStr()];
-      fp.innerHTML = '📋 Plan: <b>'+escapeHtml(pl.days[pos.idx].name)+'</b> · '+(ss?'<span style="color:var(--good)">✓ logged</span>':'not logged yet')+
-        ' <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Open →</button>';
+      const ss = psess()[dd];
+      fp.innerHTML = '📋 <b>'+escapeHtml(pl.days[ss?ss.day:pos.idx].name)+'</b> · '+(ss?'<span style="color:var(--good)">✓ session logged</span>':'not logged yet — log it below')+
+        ' <button type="button" class="wp-link" onclick="switchTab(\'wplan\')">Plan & progress →</button>';
     }
   }
 }
@@ -2694,6 +2770,7 @@ function switchTab(view){
   }
   if(view==='ingredients') renderIngredientsTab();
   if(view==='wplan') renderWorkoutPlan();
+  if(view==='today') wpSessionIfStale();
 }
 
 /* ---------- Rendering: Today (food) ---------- */
@@ -3593,6 +3670,7 @@ function deleteWorkoutEdit(){
 function renderWorkoutSection(){
   renderQuickWorkoutGrid();
   renderFitSummary();
+  wpSessionIfStale();
   const log = getTodayWorkouts();
   const container = document.getElementById('workoutList');
   if(log.length===0){
