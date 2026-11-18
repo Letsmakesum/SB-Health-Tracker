@@ -311,6 +311,17 @@
   .ing-suggest-item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid #2c3a6b;color:var(--text);padding:10px;font-size:.88rem;text-align:left;cursor:pointer;}
   .ing-suggest-item:last-child{border-bottom:none;}
   .ingredient-row.needs-amount .ing-amount{border:2px solid var(--yellow) !important;box-shadow:0 0 0 3px rgba(255,200,60,.25);}
+  .daybar{display:flex;gap:6px;align-items:center;margin:0 0 10px;}
+  .daybar button{background:var(--card2);color:var(--text);border:1px solid #2c3968;border-radius:10px;padding:8px 14px;font-size:1.1rem;cursor:pointer;flex:none;}
+  .daybar button:disabled{opacity:.35;cursor:default;}
+  .daybar .daymid{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .daybar .daymid span{font-size:.7rem;color:var(--sub);text-align:center;}
+  .daybar input[type=date]{width:100%;background:var(--card2);border:1px solid #2c3968;border-radius:10px;padding:7px 8px;color:var(--text);font-size:16px;text-align:center;}
+  .daybar #dayTodayBtn{font-size:.8rem;font-weight:700;color:var(--teal);border-color:var(--teal);}
+  .daybanner{background:#3a3216;border:1px solid var(--yellow);color:var(--yellow);border-radius:12px;padding:9px 12px;font-size:.8rem;line-height:1.4;margin:0 0 10px;}
+  .hd-line .hd-acts{display:flex;gap:6px;align-items:center;flex:none;}
+  .hd-line .hd-acts button{background:var(--card2);border:1px solid #2c3968;color:var(--text);border-radius:8px;padding:3px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  .hd-open{width:100%;margin:6px 0 2px;background:var(--card2);border:1px solid var(--teal);color:var(--teal);border-radius:10px;padding:8px;font-size:.82rem;font-weight:700;cursor:pointer;}
   .rv-flag input,.rv-flag select{border:2px solid var(--yellow) !important;background:#3a3216 !important;}
   #scanReviewModal{align-items:stretch;}
   #scanReviewModal .modal{max-width:none;width:100%;height:100%;max-height:100%;border-radius:0;padding:10px 10px 8px;display:flex;flex-direction:column;overflow:hidden;}
@@ -511,6 +522,13 @@
 
   <!-- TODAY -->
   <section id="view-today" class="view active">
+  <div class="daybar" id="dayBar">
+    <button type="button" onclick="viewPrevDay()" aria-label="Previous day">‹</button>
+    <div class="daymid"><span id="dayBarLabel">Today</span><input type="date" id="dayPick" onchange="pickViewDate(this.value)"></div>
+    <button type="button" id="dayNext" onclick="viewNextDay()" aria-label="Next day">›</button>
+    <button type="button" id="dayTodayBtn" onclick="viewToday()" style="display:none;">Today</button>
+  </div>
+  <div class="daybanner" id="dayBanner" style="display:none;"></div>
     <div class="card" id="corruptBanner" style="display:none;border:1px solid var(--red, #ff6b6b);">
       <b style="font-size:.9rem;">⚠️ Saved data couldn't be read</b>
       <p style="font-size:.8rem;color:var(--sub);margin:6px 0 10px;">Your new entries are NOT being saved right now, and your old data was kept safe. Use Settings → Import to restore a backup, or tap Start fresh to begin again.</p>
@@ -609,12 +627,12 @@
         <label style="grid-column:1/-1;font-size:.75rem;color:var(--sub);display:flex;align-items:center;gap:6px;">
           <input type="checkbox" id="fSave" style="width:auto;"> Save as go-to meal
         </label>
-        <button type="submit">Add to today's log</button>
+        <button type="submit" id="logSubmit">Add to today's log</button>
       </form>
     </div>
 
     <div class="card" id="logCard">
-      <h3>📋 Today's log</h3>
+      <h3><span id="logTitle">📋 Today's log</span></h3>
       <div id="logList"></div>
     </div>
 
@@ -710,6 +728,12 @@
 
     <div class="card">
       <h3>📉 Weight trend</h3>
+      <div class="tip-nav wt-range" style="margin-bottom:10px;">
+        <button id="wtBtn7" onclick="setWeightRange(7)">Week</button>
+        <button id="wtBtn30" onclick="setWeightRange(30)">Month</button>
+        <button id="wtBtnall" class="active" onclick="setWeightRange('all')">All time</button>
+        <button id="wtBtnplan" onclick="setWeightRange('plan')">Plan</button>
+      </div>
       <div id="weightChart"></div>
     </div>
 
@@ -817,7 +841,7 @@
         </select>
       </div>
       <div class="tip-nav">
-        <button type="button" onclick="calcLog()">➕ Add to today's log</button>
+        <button type="button" id="calcAddBtn" onclick="calcLog()">➕ Add to today's log</button>
         <button type="button" onclick="calcToForm()">🧾 Add to Log food form</button>
       </div>
     </div>
@@ -892,7 +916,7 @@
   <div class="modal">
     <h3 id="mealDetailTitle">Meal</h3>
     <div id="mealDetailBody"></div>
-    <button class="save-modal" onclick="confirmAddMealDetail()">➕ Add to today's log</button>
+    <button class="save-modal" id="mdAddBtn" onclick="confirmAddMealDetail()">➕ Add to today's log</button>
     <button class="close-modal" onclick="closeMealDetail()">Cancel</button>
   </div>
 </div>
@@ -1906,8 +1930,65 @@ function switchTab(view){
 }
 
 /* ---------- Rendering: Today (food) ---------- */
+/* ---------- View / log other days ---------- */
+window._pinned = false;   // true while you're looking at a day other than today
+function shiftDate(dstr, n){
+  const d = new Date(dstr+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return fmtDate(d);
+}
+function isViewingToday(){ return currentDate===todayStr(); }
+function setViewDate(dstr){
+  const t = todayStr();
+  if(!dstr || dstr>t) dstr = t;            // no future days
+  currentDate = dstr;
+  window._pinned = dstr!==t;
+  renderToday();
+  if(typeof renderWorkoutSection==='function') renderWorkoutSection();
+}
+function viewPrevDay(){ setViewDate(shiftDate(currentDate,-1)); }
+function viewNextDay(){ setViewDate(shiftDate(currentDate,1)); }
+function viewToday(){ setViewDate(todayStr()); }
+function pickViewDate(v){ if(v) setViewDate(v); }
+function openDayFromHistory(dstr){
+  setViewDate(dstr);
+  switchTab('today');
+  try{ window.scrollTo(0,0); }catch(e){}
+}
+function updateDayBar(){
+  const t = todayStr(), past = currentDate!==t;
+  const pick = document.getElementById('dayPick');
+  if(pick){ pick.value = currentDate; pick.max = t; }
+  document.getElementById('dayBarLabel').textContent = past ? dateLabel(currentDate) : 'Today · '+dateLabel(currentDate);
+  document.getElementById('dayNext').disabled = !past;
+  document.getElementById('dayTodayBtn').style.display = past ? '' : 'none';
+  const ban = document.getElementById('dayBanner');
+  ban.style.display = past ? '' : 'none';
+  ban.textContent = past ? '📝 You\'re looking at '+dateLabel(currentDate)+'. Meals and workouts you add go to this day. Tap "Today" to go back.' : '';
+  const label = past ? 'this day' : 'today';
+  const nm = past ? fmtShort(currentDate) : '';
+  document.getElementById('logTitle').textContent = past ? '📋 Log for '+nm : '📋 Today\'s log';
+  document.getElementById('logSubmit').textContent = past ? 'Add to '+nm+' log' : 'Add to today\'s log';
+  document.getElementById('calcAddBtn').textContent = past ? '➕ Add to '+nm+' log' : '➕ Add to today\'s log';
+  document.getElementById('mdAddBtn').textContent = past ? '➕ Add to '+nm+' log' : '➕ Add to today\'s log';
+}
+/* Copy a meal from any day onto today (for a one-off you ate again) */
+function copyEntryToToday(date, id){
+  const e = (data.logs[date]||[]).find(x=>x.id===id);
+  if(!e) return;
+  const t = todayStr();
+  const copy = JSON.parse(JSON.stringify(e));
+  copy.id = uid('e'); copy.time = Date.now();
+  if(!data.logs[t]) data.logs[t] = [];
+  data.logs[t].push(copy);
+  saveData();
+  renderToday();
+  if(typeof renderHistory==='function') renderHistory();
+  showToast(e.name+' added to today ✓');
+}
+
 function getTodayLog(){
-  if(todayStr()!==currentDate) refreshDay();
+  if(!window._pinned && todayStr()!==currentDate) refreshDay();
   if(!data.logs[currentDate]) data.logs[currentDate] = [];
   return data.logs[currentDate];
 }
@@ -1925,7 +2006,8 @@ function macroGoals(){
 }
 
 function renderToday(){
-  document.getElementById('dateLabel').textContent = dateLabel(currentDate);
+  document.getElementById('dateLabel').textContent = dateLabel(currentDate)+(currentDate!==todayStr() ? ' (past day)' : '');
+  updateDayBar();
   const log = getTodayLog();
   const totals = log.reduce((acc,e)=>{
     acc.cals += Number(e.cals)||0;
@@ -2320,7 +2402,9 @@ function quickAdd(m){
 function renderLog(log){
   const container = document.getElementById('logList');
   if(log.length===0){
-    container.innerHTML = '<div class="empty">No entries yet today. Log a meal or tap a go-to above.</div>';
+    container.innerHTML = isViewingToday()
+      ? '<div class="empty">No entries yet today. Log a meal or tap a go-to above.</div>'
+      : '<div class="empty">No meals logged for this day yet. Add one with the form above or a go-to meal.</div>';
     return;
   }
   const meals = ['Breakfast','Lunch','Dinner','Snack'];
@@ -2340,6 +2424,7 @@ function renderLog(log){
         '<div class="macros">P '+(e.p||0)+'g · C '+(e.c||0)+'g · F '+(e.f||0)+'g · Fiber '+(e.fi||0)+'g'+(trk().na ? ' · Sodium '+(e.na||0)+'mg' : '')+(trk().su ? ' · Sugar '+(e.su||0)+'g' : '')+(trk().ch ? ' · Chol '+(e.ch||0)+'mg' : '')+ingLine+'</div></div>'+
         '<div class="right"><span class="cals">'+e.cals+' cal</span>'+
         '<button class="del-btn" title="Edit" onclick="openFoodEdit(\''+currentDate+'\',\''+e.id+'\')">✏️</button>'+
+        (isViewingToday() ? '' : '<button class="del-btn" title="Copy to today" onclick="copyEntryToToday(\''+currentDate+'\',\''+e.id+'\')">📋</button>')+
         '<button class="del-btn" onclick="deleteEntry(\''+e.id+'\')">✕</button></div>';
       container.appendChild(row);
     });
@@ -2572,7 +2657,7 @@ function estimateCaloriesBurned(){
 }
 
 function getTodayWorkouts(){
-  if(todayStr()!==currentDate) refreshDay();
+  if(!window._pinned && todayStr()!==currentDate) refreshDay();
   if(!data.workoutLogs[currentDate]) data.workoutLogs[currentDate] = [];
   return data.workoutLogs[currentDate];
 }
@@ -2888,7 +2973,7 @@ function renderHistory(){
     const d = new Date(x.d+'T00:00:00');
     const row = histEl('div','h-row'+(x.d===historySelected ? ' sel' : ''));
     const main = histEl('div','h-main');
-    main.appendChild(histEl('span','', (x.d===currentDate ? 'Today · ' : '')+d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})));
+    main.appendChild(histEl('span','', (x.d===todayStr() ? 'Today · ' : '')+d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})));
     const right = histEl('span');
     right.appendChild(histEl('b','', fmtN(x.cals)+' cal'));
     right.appendChild(histEl('span','pct', ' ('+Math.round(x.cals/goal*100)+'%)'));
@@ -2913,6 +2998,10 @@ function renderHistoryDetail(x, goal){
   if(!x) return;
   const d = new Date(x.d+'T00:00:00');
   box.appendChild(histEl('div','hd-big', d.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'})));
+  const openBtn = histEl('button','hd-open', x.d===todayStr() ? 'Open today to add or edit meals' : '📝 Add or edit meals on this day');
+  openBtn.type = 'button';
+  openBtn.onclick = function(){ openDayFromHistory(x.d); };
+  box.appendChild(openBtn);
   if(!x.cals && x.log.length===0){
     box.appendChild(histEl('div','hd-sub','Nothing logged this day.'));
   } else {
@@ -2951,7 +3040,19 @@ function renderHistoryDetail(x, goal){
       x.log.filter(e=>e.meal===mn).forEach(e=>{
         const line = histEl('div','hd-line');
         line.appendChild(histEl('span','', mn+' — '+e.name));
-        line.appendChild(histEl('span','', Math.round(Number(e.cals)||0)+' cal'));
+        const acts = histEl('span','hd-acts');
+        acts.appendChild(histEl('span','', Math.round(Number(e.cals)||0)+' cal'));
+        const ed = histEl('button','', '✏️ Edit');
+        ed.type = 'button';
+        ed.onclick = function(){ openFoodEdit(x.d, e.id); };
+        acts.appendChild(ed);
+        if(x.d!==todayStr()){
+          const cp = histEl('button','', '➕ Today');
+          cp.type = 'button';
+          cp.onclick = function(){ copyEntryToToday(x.d, e.id); };
+          acts.appendChild(cp);
+        }
+        line.appendChild(acts);
         box.appendChild(line);
       });
     });
@@ -2995,7 +3096,7 @@ function logWeight(ev){
   ev.preventDefault();
   const val = Number(document.getElementById('wInput').value);
   if(!val || val<=0) return false;
-  data.weightLogs[currentDate] = val;
+  data.weightLogs[todayStr()] = val;
   saveData();
   renderProgress();
   showToast('Weight logged ✓');
@@ -3042,40 +3143,113 @@ function renderProgress(){
   renderStrengthSection();
 }
 
+/* ---------- Weight trend: week / month / all time / full plan ---------- */
+let weightRange = 'all';
+window._wtSel = null;
+function setWeightRange(r){
+  weightRange = r;
+  window._wtSel = null;
+  ['7','30','all','plan'].forEach(function(k){
+    const bt = document.getElementById('wtBtn'+k);
+    if(bt) bt.classList.toggle('active', String(r)===k);
+  });
+  renderWeightChart();
+}
+function selectWeightPoint(d){ window._wtSel = d; renderWeightChart(); }
+function weightWindow(dates){
+  const t = todayStr(), g = data.weightGoal;
+  if(weightRange===7) return {from:shiftDate(t,-6), to:t};
+  if(weightRange===30) return {from:shiftDate(t,-29), to:t};
+  const first = dates.length && dates[0]<g.startDate ? dates[0] : g.startDate;
+  const last = dates.length && dates[dates.length-1]>t ? dates[dates.length-1] : t;
+  if(weightRange==='plan') return {from:first, to:(g.targetDate>last ? g.targetDate : last)};
+  return {from:first, to:last};   // all time: first weigh-in/start -> today
+}
 function renderWeightChart(){
   const wrap = document.getElementById('weightChart');
   const g = data.weightGoal;
-  const dates = Object.keys(data.weightLogs).sort();
-  if(dates.length===0){
+  const all = Object.keys(data.weightLogs).sort();
+  if(all.length===0){
     wrap.innerHTML = '<div class="empty">Log your weight to see your trend.</div>';
     return;
   }
-  const start = new Date(g.startDate+'T00:00:00').getTime();
-  const target = new Date(g.targetDate+'T00:00:00').getTime();
-  const todayT = new Date(todayStr()+'T00:00:00').getTime();
-  const lastLogT = new Date(dates[dates.length-1]+'T00:00:00').getTime();
-  const firstLogT = new Date(dates[0]+'T00:00:00').getTime();
-  const spanStart = Math.min(start, firstLogT);
-  const spanEnd = Math.max(target, todayT, lastLogT);
-  const w=300, h=140, pad=12;
-
-  function x(t){ return pad + (w-2*pad) * ((t-spanStart)/((spanEnd-spanStart)||1)); }
-
-  const weights = dates.map(d=>data.weightLogs[d]);
-  const allW = weights.concat([g.startWeight, g.goalWeight]);
-  const minW = Math.min(...allW)-2, maxW = Math.max(...allW)+2;
-  function y(v){ return h-pad - (h-2*pad) * ((v-minW)/((maxW-minW)||1)); }
-
-  const actualPts = dates.map(d=> x(new Date(d+'T00:00:00').getTime())+','+y(data.weightLogs[d])).join(' ');
-  const circles = dates.map(d=>'<circle cx="'+x(new Date(d+'T00:00:00').getTime())+'" cy="'+y(data.weightLogs[d])+'" r="3.5" fill="#8e6fed"></circle>').join('');
-
-  wrap.innerHTML = '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+
-    '<line x1="'+x(start)+'" y1="'+y(g.startWeight)+'" x2="'+x(target)+'" y2="'+y(g.goalWeight)+'" stroke="#5a6494" stroke-width="2" stroke-dasharray="4 4"></line>'+
-    '<polyline points="'+actualPts+'" fill="none" stroke="#0fb9b1" stroke-width="3"></polyline>'+
-    circles+
-    '</svg>'+
-    '<div style="font-size:.7rem;color:var(--sub);display:flex;justify-content:space-between;">'+
-    '<span>— your weigh-ins</span><span>┄ expected pace</span></div>';
+  const win = weightWindow(all);
+  const DAY = 86400000;
+  const tm = d=> new Date(d+'T00:00:00').getTime();
+  const fromT = tm(win.from), toT = Math.max(tm(win.to), fromT+DAY);
+  const pts = all.filter(d=> d>=win.from && d<=win.to);
+  const startT = tm(g.startDate), targetT = tm(g.targetDate);
+  // pace line clipped to this window
+  const p1 = Math.max(fromT, startT), p2 = Math.min(toT, targetT);
+  const showPace = p1<=p2 && targetT>startT;
+  const paceA = showPace ? expectedWeightOn(fmtDate(new Date(p1))) : null;
+  const paceB = showPace ? expectedWeightOn(fmtDate(new Date(p2))) : null;
+  const vals = pts.map(d=>data.weightLogs[d]);
+  if(showPace){ vals.push(paceA, paceB); }
+  if(!vals.length){ vals.push(g.startWeight, g.goalWeight); }
+  let minW = Math.min.apply(null, vals), maxW = Math.max.apply(null, vals);
+  if(maxW-minW < 4){ const mid=(maxW+minW)/2; minW = mid-2; maxW = mid+2; }
+  minW -= 0.8; maxW += 0.8;
+  const W=320, H=190, L=36, R=10, T=10, B=26;
+  const X = t=> L + (W-L-R) * ((t-fromT)/(toT-fromT));
+  const Y = v=> H-B - (H-T-B) * ((v-minW)/((maxW-minW)||1));
+  let svg = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;max-height:260px;font-family:inherit;">';
+  // horizontal grid + weight labels
+  const step = (maxW-minW)>16 ? 5 : ((maxW-minW)>8 ? 2 : 1);
+  for(let v=Math.ceil(minW/step)*step; v<=maxW; v+=step){
+    svg += '<line x1="'+L+'" y1="'+Y(v)+'" x2="'+(W-R)+'" y2="'+Y(v)+'" stroke="#2a3768" stroke-width="1"></line>'+
+           '<text x="'+(L-4)+'" y="'+(Y(v)+3)+'" fill="#8d97c4" font-size="9" text-anchor="end">'+v+'</text>';
+  }
+  // date labels
+  const span = Math.round((toT-fromT)/DAY);
+  const labels = [];
+  if(weightRange===7){ for(let i=0;i<=span;i++) labels.push(fromT+i*DAY); }
+  else {
+    const n = weightRange===30 ? 5 : 4;
+    for(let i=0;i<=n;i++) labels.push(fromT + (toT-fromT)*i/n);
+  }
+  labels.forEach(function(t,i){
+    const dd = new Date(t);
+    const txt = weightRange===7 ? dd.toLocaleDateString(undefined,{weekday:'short'}) : (dd.getMonth()+1)+'/'+dd.getDate()+(span>400 ? '/'+String(dd.getFullYear()).slice(2) : '');
+    svg += '<text x="'+X(t)+'" y="'+(H-8)+'" fill="#8d97c4" font-size="9" text-anchor="'+(i===0?'start':(i===labels.length-1?'end':'middle'))+'">'+txt+'</text>';
+  });
+  // goal weight line (if in range)
+  if(g.goalWeight>=minW && g.goalWeight<=maxW){
+    svg += '<line x1="'+L+'" y1="'+Y(g.goalWeight)+'" x2="'+(W-R)+'" y2="'+Y(g.goalWeight)+'" stroke="#ffc83c" stroke-width="1" stroke-dasharray="2 4"></line>'+
+           '<text x="'+(W-R)+'" y="'+(Y(g.goalWeight)-3)+'" fill="#ffc83c" font-size="8" text-anchor="end">goal '+g.goalWeight+'</text>';
+  }
+  if(showPace){
+    svg += '<line x1="'+X(p1)+'" y1="'+Y(paceA)+'" x2="'+X(p2)+'" y2="'+Y(paceB)+'" stroke="#5a6494" stroke-width="2" stroke-dasharray="4 4"></line>';
+  }
+  if(pts.length>1){
+    svg += '<polyline points="'+pts.map(d=> X(tm(d))+','+Y(data.weightLogs[d])).join(' ')+'" fill="none" stroke="#0fb9b1" stroke-width="2.5" stroke-linejoin="round"></polyline>';
+  }
+  const sel = (window._wtSel && pts.indexOf(window._wtSel)!==-1) ? window._wtSel : pts[pts.length-1];
+  pts.forEach(function(d){
+    const cx = X(tm(d)), cy = Y(data.weightLogs[d]);
+    svg += '<circle cx="'+cx+'" cy="'+cy+'" r="'+(d===sel?5:3.2)+'" fill="'+(d===sel?'#fff':'#8e6fed')+'" stroke="#0fb9b1" stroke-width="'+(d===sel?2:0)+'"></circle>'+
+           '<circle cx="'+cx+'" cy="'+cy+'" r="11" fill="transparent" style="cursor:pointer" onclick="selectWeightPoint(\''+d+'\')"></circle>';
+  });
+  svg += '</svg>';
+  // readout + summary
+  let info = '';
+  if(pts.length===0){
+    info = '<div class="empty" style="padding:6px 0;">No weigh-ins in this period. Log your weight above, or try a longer view.</div>';
+  } else {
+    const first = data.weightLogs[pts[0]], last = data.weightLogs[pts[pts.length-1]];
+    const ch = last-first, avg = vals.slice(0,pts.length).reduce(function(a,b){return a+b;},0)/pts.length;
+    const chTxt = pts.length>1 ? ((ch>0?'+':'')+ch.toFixed(1)+' lbs') : '–';
+    const chColor = pts.length>1 ? (ch<=0 ? 'var(--good)' : 'var(--coral)') : 'var(--sub)';
+    info = '<div style="font-size:.85rem;margin:6px 0 2px;"><b>'+fmtShort(sel)+'</b> — '+data.weightLogs[sel]+' lbs <span style="color:var(--sub);font-size:.7rem;">(tap a dot to see another day)</span></div>'+
+      '<div class="ring-stats" style="margin-top:6px;">'+
+      '<div class="row"><span>Weigh-ins</span><b>'+pts.length+'</b></div>'+
+      '<div class="row"><span>First → latest</span><b>'+first+' → '+last+' lbs</b></div>'+
+      '<div class="row"><span>Change</span><b style="color:'+chColor+'">'+chTxt+'</b></div>'+
+      '<div class="row"><span>Average</span><b>'+avg.toFixed(1)+' lbs</b></div>'+
+      '</div>';
+  }
+  wrap.innerHTML = svg+
+    '<div style="font-size:.7rem;color:var(--sub);display:flex;justify-content:space-between;margin-top:2px;"><span>— your weigh-ins</span><span>┄ expected pace</span></div>'+info;
 }
 
 function periodStats(days){
@@ -3090,7 +3264,7 @@ function periodStats(days){
 
 function setProgressPeriod(n){
   progressPeriod = n;
-  document.querySelectorAll('#view-progress .tip-nav button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#view-progress .tip-nav:not(.wt-range) button').forEach(b=>b.classList.remove('active'));
   const btn = document.getElementById('periodBtn'+n);
   if(btn) btn.classList.add('active');
   renderCalorieBalance();
@@ -4402,6 +4576,7 @@ if(window._loadFailed) showCorruptBanner();
 
 // Keep "today" correct when the installed app stays open past midnight
 function refreshDay(){
+  if(window._pinned){ updateDayBar(); return; }
   const t = todayStr();
   if(t !== currentDate){
     currentDate = t;
