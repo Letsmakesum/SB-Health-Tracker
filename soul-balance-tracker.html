@@ -35,7 +35,7 @@
     background:radial-gradient(circle at 10% 0%, #23306a 0%, var(--bg) 45%);
     color:var(--text);
     min-height:100vh;
-    padding-bottom:90px;
+    padding-bottom:calc(90px + env(safe-area-inset-bottom));
   }
   header{
     padding:22px 18px 14px;
@@ -529,12 +529,14 @@
 
   /* Bottom nav (mobile) */
   .bottom-nav{
-    position:fixed;bottom:0;left:0;right:0;
+    position:fixed;bottom:0;left:0;right:0;z-index:40;
+    -webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);
     background:var(--card);
     display:flex;
     padding:8px 4px calc(8px + env(safe-area-inset-bottom));
     box-shadow:0 -4px 14px rgba(0,0,0,.3);
   }
+  body.kb-open .bottom-nav{display:none;}
   .bottom-nav button{
     flex:1;background:none;border:none;color:var(--sub);
     font-size:.6rem;padding:6px 0;cursor:pointer;
@@ -1083,6 +1085,7 @@
     <h3 id="mealDetailTitle">Meal</h3>
     <div id="mealDetailBody"></div>
     <button class="save-modal" id="mdAddBtn" onclick="confirmAddMealDetail()">➕ Add to today's log</button>
+    <button class="close-modal" id="mdEditBtn" onclick="editGotoFromDetail()" style="margin-bottom:6px;">✏️ Edit ingredients &amp; macros</button>
     <button class="close-modal" onclick="closeMealDetail()">Cancel</button>
   </div>
 </div>
@@ -1167,19 +1170,25 @@
 <!-- Edit logged meal modal -->
 <div class="modal-bg" id="foodEditModal">
   <div class="modal">
-    <h3>✏️ Edit meal</h3>
+    <h3 id="foodEditTitle">✏️ Edit meal</h3>
     <div class="field">
       <label>Food or meal name</label>
       <input type="text" id="editFName">
     </div>
     <div class="field">
-      <label>Move to</label>
+      <label id="editFMealLbl">Move to</label>
       <select id="editFMeal">
         <option>Breakfast</option>
         <option>Lunch</option>
         <option>Dinner</option>
         <option>Snack</option>
       </select>
+    </div>
+    <div class="field">
+      <label>Ingredients</label>
+      <div id="editIngRows"></div>
+      <button type="button" class="add-ingredient-btn" onclick="addIngredientRow(null,'editIngRows')">+ Add ingredient</button>
+      <p style="font-size:.72rem;color:var(--sub);margin:4px 0 0;">Change an amount, swap an ingredient or remove one — the totals below follow along.</p>
     </div>
     <div class="row2b">
       <div class="field"><label>Calories</label><input type="number" id="editFCals" min="0" step="any" inputmode="decimal"></div>
@@ -3616,8 +3625,8 @@ function ingRowFocusOut(e){
 }
 
 /* ---------- Ingredient row builder (Log food form) ---------- */
-function addIngredientRow(prefill){
-  const container = document.getElementById('ingredientRows');
+function addIngredientRow(prefill, containerId){
+  const container = document.getElementById(containerId || 'ingredientRows');
   const row = document.createElement('div');
   row.className = 'ingredient-row';
   const unitOptions = '<option value="">unit</option>'+INGREDIENT_UNITS.map(u=>'<option>'+u+'</option>').join('');
@@ -3700,10 +3709,28 @@ function recalcMealTotals(){
     document.getElementById('fSugar').value = r1(su);
     document.getElementById('fChol').value = r1(ch);
   }
+  gEditRecalc();
+}
+/* Totals inside the Edit meal / go-to meal window follow its ingredient rows */
+function gEditRecalc(){
+  const modal = document.getElementById('foodEditModal');
+  if(!modal || !modal.classList.contains('open')) return;
+  const rows = document.querySelectorAll('#editIngRows .ingredient-row');
+  let t = {cal:0,p:0,c:0,f:0,fi:0,na:0,su:0,ch:0}, any = false;
+  rows.forEach(r=>{
+    const g = c=>Number(r.querySelector(c).value)||0;
+    const v = {cal:g('.ing-cal'),p:g('.ing-p'),c:g('.ing-c'),f:g('.ing-f'),fi:g('.ing-fi'),na:g('.ing-na'),su:g('.ing-su'),ch:g('.ing-ch')};
+    Object.keys(v).forEach(k=>{ if(v[k]) any = true; t[k] += v[k]; });
+  });
+  if(!any) return;
+  const r1 = x=> Math.round(x*10)/10;
+  const set = (id,v)=>{ document.getElementById(id).value = v; };
+  set('editFCals', Math.round(t.cal)); set('editFProtein', r1(t.p)); set('editFCarbs', r1(t.c)); set('editFFat', r1(t.f));
+  set('editFFiber', r1(t.fi)); set('editFSodium', r1(t.na)); set('editFSugar', r1(t.su)); set('editFChol', r1(t.ch));
 }
 
-function collectIngredients(onlyComplete){
-  const rows = document.querySelectorAll('#ingredientRows .ingredient-row');
+function collectIngredients(onlyComplete, containerId){
+  const rows = document.querySelectorAll('#'+(containerId||'ingredientRows')+' .ingredient-row');
   const list = [];
   rows.forEach(r=>{
     if(onlyComplete){
@@ -3776,6 +3803,7 @@ function openMealDetail(m){
     '<div class="row"><span>Meal type</span><b>'+m.meal+'</b></div>'+
     '</div>'+ingHtml;
   window._activeMealDetail = m;
+  const eb = document.getElementById('mdEditBtn'); if(eb) eb.style.display = (m.id && data.goToMeals.some(x=>x.id===m.id)) ? '' : 'none';
   document.getElementById('mealDetailModal').classList.add('open');
 }
 function closeMealDetail(){
@@ -3836,10 +3864,47 @@ function deleteEntry(id){
 /* ---------- Edit a logged meal (change meal slot, name, macros) ---------- */
 window._editingFood = null;
 
+function fillEditIngRows(ings){
+  const box = document.getElementById('editIngRows'); box.innerHTML = '';
+  const list = Array.isArray(ings) ? ings.filter(i=>i && i.name)
+    : (typeof ings==='string' ? ings.split(',').map(x=>x.trim()).filter(Boolean).map(n=>({name:n})) : []);
+  list.forEach(i=>addIngredientRow(i,'editIngRows'));
+}
+function openGotoEdit(id, fromSettings){
+  const m = data.goToMeals.find(x=>x.id===id);
+  if(!m) return;
+  window._editingFood = {goto:id, fromSettings:!!fromSettings};
+  document.getElementById('foodEditTitle').textContent = '✏️ Edit go-to meal';
+  document.getElementById('editFMealLbl').textContent = 'Meal type';
+  fillFoodEditFields(m);
+  fillEditIngRows(m.ingredients);
+  closeMealDetail();
+  if(fromSettings) closeSettings();
+  document.getElementById('foodEditModal').classList.add('open');
+}
+function editGotoFromDetail(){
+  const m = window._activeMealDetail;
+  if(m && m.id) openGotoEdit(m.id, false);
+}
+function fillFoodEditFields(e){
+  document.getElementById('editFName').value = e.name || '';
+  document.getElementById('editFMeal').value = e.meal || 'Snack';
+  document.getElementById('editFCals').value = e.cals || 0;
+  document.getElementById('editFProtein').value = e.p || '';
+  document.getElementById('editFCarbs').value = e.c || '';
+  document.getElementById('editFFat').value = e.f || '';
+  document.getElementById('editFFiber').value = e.fi || '';
+  document.getElementById('editFSodium').value = e.na || '';
+  document.getElementById('editFSugar').value = e.su || '';
+  document.getElementById('editFChol').value = e.ch || '';
+}
 function openFoodEdit(date, id){
   const e = (data.logs[date]||[]).find(x=>x.id===id);
   if(!e) return;
   window._editingFood = {date, id};
+  document.getElementById('foodEditTitle').textContent = '✏️ Edit meal';
+  document.getElementById('editFMealLbl').textContent = 'Move to';
+  fillEditIngRows(e.ingredients);
   document.getElementById('editFName').value = e.name || '';
   document.getElementById('editFMeal').value = e.meal || 'Snack';
   document.getElementById('editFCals').value = e.cals || 0;
@@ -3854,14 +3919,17 @@ function openFoodEdit(date, id){
 }
 
 function closeFoodEdit(){
+  const was = window._editingFood;
   document.getElementById('foodEditModal').classList.remove('open');
   window._editingFood = null;
+  if(was && was.fromSettings) openSettings();
 }
 
 function saveFoodEdit(){
   if(!window._editingFood) return;
   const {date, id} = window._editingFood;
-  const e = (data.logs[date]||[]).find(x=>x.id===id);
+  const gid = window._editingFood.goto;
+  const e = gid ? data.goToMeals.find(x=>x.id===gid) : (data.logs[date]||[]).find(x=>x.id===id);
   if(!e) return;
   const name = document.getElementById('editFName').value.trim();
   if(!name){ showToast('Name is required'); return; }
@@ -3875,11 +3943,13 @@ function saveFoodEdit(){
   e.na = Number(document.getElementById('editFSodium').value)||0;
   e.su = Number(document.getElementById('editFSugar').value)||0;
   e.ch = Number(document.getElementById('editFChol').value)||0;
+  e.ingredients = collectIngredients(false, 'editIngRows');
   saveData();
   closeFoodEdit();
   renderToday();
   if(typeof renderHistory==='function') renderHistory();
-  showToast('Meal updated ✓');
+  if(gid){ renderQuickGrid(); if(document.getElementById('settingsModal').classList.contains('open')) renderGotoManage(); }
+  showToast(gid ? 'Go-to meal updated ✓' : 'Meal updated ✓');
 }
 
 function addEntry(ev){
@@ -5269,6 +5339,7 @@ function renderGotoManage(){
     const opts = ['Breakfast','Lunch','Dinner','Snack'].map(n=>'<option'+(m.meal===n?' selected':'')+'>'+n+'</option>').join('');
     row.innerHTML = '<span style="flex:1;">'+escapeHtml(m.name)+' — '+m.cals+' cal</span>'+
       '<select title="Meal slot" onchange="setGotoMeal(\''+m.id+'\',this.value)" style="font-size:16px;margin:0 6px;background:var(--card2);color:var(--text);border:1px solid #3a4778;border-radius:8px;padding:4px;">'+opts+'</select>'+
+      '<button onclick="openGotoEdit(\''+m.id+'\',true)" title="Edit ingredients and macros" style="margin-right:4px;">✏️</button>'+
       '<button onclick="removeGoto(\''+m.id+'\')">✕</button>';
     wrap.appendChild(row);
   });
@@ -6050,9 +6121,29 @@ document.getElementById('ingredientRows').addEventListener('input', recalcMealTo
 document.getElementById('ingredientRows').addEventListener('input', ingRowInput);
 document.getElementById('ingredientRows').addEventListener('change', ingRowInput);
 document.getElementById('ingredientRows').addEventListener('focusout', ingRowFocusOut);
+(function(){
+  const er = document.getElementById('editIngRows');
+  er.addEventListener('input', ingRowInput);
+  er.addEventListener('change', ingRowInput);
+  er.addEventListener('focusout', ingRowFocusOut);
+  er.addEventListener('input', gEditRecalc);
+})();
 renderToday();
 renderProgress();
 if(window._loadFailed) showCorruptBanner();
+
+/* iPhone: when the keyboard opens, iOS drags fixed bars up over what you're typing — hide the tab bar until you're done typing */
+(function(){
+  const isField = el => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && !/^(checkbox|radio|button|submit|file|range|color)$/.test(el.type||'');
+  const sync = ()=>{
+    const vv = window.visualViewport;
+    const shrunk = vv && (window.innerHeight - vv.height > 120);
+    document.body.classList.toggle('kb-open', !!(isField(document.activeElement) || shrunk));
+  };
+  document.addEventListener('focusin', sync);
+  document.addEventListener('focusout', ()=> setTimeout(sync, 120));
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', sync);
+})();
 
 // Keep "today" correct when the installed app stays open past midnight
 function refreshDay(){
