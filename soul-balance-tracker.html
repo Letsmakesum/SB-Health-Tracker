@@ -138,6 +138,12 @@
   .wp-up{font-size:.76rem;color:var(--good);margin-top:3px;}
   .wp-link{background:none;border:none;color:var(--teal);font-size:.78rem;padding:4px 0;cursor:pointer;font-weight:600;}
   .wprow{display:flex;align-items:center;gap:8px;margin:6px 0;}
+  .wp-links{display:flex;gap:14px;flex-wrap:wrap;}
+  .wp-uni-head{display:flex;gap:8px;font-size:.66rem;color:var(--sub);margin:6px 0 0;padding-left:26px;}
+  .wp-uni-head span{flex:1;text-align:center;}
+  .wp-uni-head span:first-child,.wp-uni-head span:nth-child(3),.wp-uni-head span:last-child{flex:none;width:14px;}
+  .wp-uni-head span:last-child{width:34px;}
+  .wp-num{display:inline-block;}
   .wprow input{flex:1;min-width:0;}
   .wpn{width:18px;color:var(--sub);font-size:.75rem;text-align:center;}
   .att{display:grid;grid-template-columns:34px repeat(7,1fr);gap:4px;align-items:center;margin-bottom:4px;font-size:.7rem;text-align:center;}
@@ -801,7 +807,14 @@
       <div id="fhList"></div>
     </div>
     <div class="card" data-mode="nutrition">
-      <h3>📈 Calories by day</h3>
+      <h3>📈 <span id="histMetricTitle">Calories by day</span></h3>
+      <div class="tip-nav" id="histMetric" style="margin-bottom:8px;">
+        <button class="active" data-m="cals" onclick="setHistoryMetric('cals')">Calories</button>
+        <button data-m="p" onclick="setHistoryMetric('p')">Protein</button>
+        <button data-m="c" onclick="setHistoryMetric('c')">Carbs</button>
+        <button data-m="f" onclick="setHistoryMetric('f')">Fat</button>
+        <button data-m="fi" onclick="setHistoryMetric('fi')">Fiber</button>
+      </div>
       <div class="tip-nav" id="histRange" style="margin-bottom:10px;">
         <button class="active" data-n="7" onclick="setHistoryRange(7)">7 days</button>
         <button data-n="14" onclick="setHistoryRange(14)">14 days</button>
@@ -810,7 +823,7 @@
       <div class="hist-stats" id="histStats"></div>
       <div class="hchart" id="chart7"></div>
       <div class="hdays" id="chartDays"></div>
-      <div class="hist-legend">
+      <div class="hist-legend" id="histLegend">
         <span><i style="background:var(--good);"></i>At or under goal</span>
         <span><i style="background:var(--yellow);"></i>Up to 10% over</span>
         <span><i style="background:var(--coral);"></i>More than 10% over</span>
@@ -1087,6 +1100,19 @@
     <button class="save-modal" id="mdAddBtn" onclick="confirmAddMealDetail()">➕ Add to today's log</button>
     <button class="close-modal" id="mdEditBtn" onclick="editGotoFromDetail()" style="margin-bottom:6px;">✏️ Edit ingredients &amp; macros</button>
     <button class="close-modal" onclick="closeMealDetail()">Cancel</button>
+  </div>
+</div>
+
+<!-- Add a logged meal to a chosen day / meal -->
+<div class="modal-bg" id="copyMealModal">
+  <div class="modal">
+    <h3>➕ Add meal to…</h3>
+    <p id="cmName" style="font-size:.85rem;color:var(--sub);margin-top:-6px;"></p>
+    <div class="field"><label for="cmDate">Which day?</label><input type="date" id="cmDate"></div>
+    <div class="field"><label for="cmMeal">Which meal?</label>
+      <select id="cmMeal"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option></select></div>
+    <button type="button" class="save-modal" onclick="confirmCopyMeal()">Add meal</button>
+    <button type="button" class="close-modal" onclick="closeCopyMeal()">Cancel</button>
   </div>
 </div>
 
@@ -2202,9 +2228,10 @@ function wpLast(name, date){
   }
   return null;
 }
+function wpEff(s){ return s && s.uni ? Math.min(Number(s.l)||0, Number(s.r)||0) : (Number(s && s.r)||0); }
 function topSet(sets){
   let b = null;
-  (sets||[]).forEach(s=>{ if(!b || s.w>b.w || (s.w===b.w && s.r>b.r)) b = s; });
+  (sets||[]).forEach(s=>{ if(!b || s.w>b.w || (s.w===b.w && wpEff(s)>wpEff(b))) b = s; });
   return b;
 }
 function wpGuessGrp(n){ return /crunch|knee raise|dead bug|pallof|plank|\babs?\b|sit-?up|leg raise|core/i.test(n||'') ? 'abs' : 'lift'; }
@@ -2254,7 +2281,10 @@ function wpSaveSetup(){
 }
 
 /* --- session --- */
-function fmtSet(s, unit){ return s.w ? s.w+'×'+s.r : s.r+(unit||' reps'); }
+function fmtSet(s, unit){
+  if(s.uni) return (s.w ? s.w+'×' : '')+s.l+'L/'+s.r+'R'+(s.w ? '' : (unit||' reps'));
+  return s.w ? s.w+'×'+s.r : s.r+(unit||' reps');
+}
 function unitOf(ex){ return /sec/i.test(ex.reps||'') ? ' sec' : ' reps'; }
 function wpRunHint(week){
   const R = wplan().running || []; const i = wpRunStage(week);
@@ -2324,22 +2354,25 @@ function wpExBlock(ex, i, saved, date, week, swapName){
   const last = wpLast(name, date);
   window._wpLastMap = window._wpLastMap || {}; window._wpLastMap[i] = last ? last.sets : null;
   const useSv = sv && (swapName===undefined);
+  const uni = useSv ? !!sv.uni : !!ex.uni;
   const n = Math.max(1, Math.min(5, Number(ex.sets)||3), useSv ? Math.min(5,(sv.sets||[]).length) : 0);
   const startN = swap ? null : parseFirstNum(ex.start), lowRep = parseFirstNum(ex.reps), top = parseTopNum(ex.reps), unit = unitOf(ex);
   let rows = '';
   const nrows = (useSv && (sv.sets||[]).length===0) ? 0 : n;
   for(let j=0;j<nrows;j++){
     const s = useSv && sv.sets && sv.sets[j];
-    const lw = last && last.sets[j] ? last.sets[j].w : (ex.kind==='bw' ? null : startN);
-    const lr = last && last.sets[j] ? last.sets[j].r : lowRep;
-    rows += wpRowHtml(j, s, lw, lr, ex.kind==='bw');
+    const ls = last && last.sets[j];
+    const lw = ls ? ls.w : (ex.kind==='bw' ? null : startN);
+    const lr = ls ? ls.r : lowRep;
+    const ll = ls ? (ls.uni ? ls.l : ls.r) : lowRep;
+    rows += wpRowHtml(j, s, lw, lr, ex.kind==='bw', uni, ll);
   }
   let info = '<span class="wp-meta">'+(ex.sets||'?')+' × '+escapeHtml(ex.reps||'')+(ex.start && !swap?' · '+escapeHtml(ex.start)+(/^[\d.–-]+$/.test(ex.start)?' lb':''):'')+'</span>';
   let lastTxt = '';
   if(last){
     lastTxt = '<div class="wp-last">Last time ('+escapeHtml(fmtShort(last.date))+'): '+last.sets.map(s=>fmtSet(s,unit)).join(', ')+
       ' <button type="button" class="wp-link" onclick="wpFillLast('+i+')">↺ use these</button></div>';
-    if(ex.kind==='lift' && top && !/sec/i.test(ex.reps||'') && last.sets.length && last.sets.every(s=>s.r>=top))
+    if(ex.kind==='lift' && top && !/sec/i.test(ex.reps||'') && last.sets.length && last.sets.every(s=>wpEff(s)>=top))
       lastTxt += '<div class="wp-up">💪 You hit the top of the range last time — try a little more weight.</div>';
   } else if(swap){
     lastTxt = '<div class="wp-last">First time logging '+escapeHtml(swap)+' — use a weight that feels right.</div>';
@@ -2349,18 +2382,33 @@ function wpExBlock(ex, i, saved, date, week, swapName){
   const swapUi = swap
     ? '<button type="button" class="wp-link" onclick="wpSwapApply('+i+',null)">↩ Back to '+escapeHtml(ex.name)+'</button>'
     : '<button type="button" class="wp-link" onclick="wpSwapOpen('+i+')">⇄ Swap (machine taken?)</button>';
-  return '<div class="wpex" id="wpb_'+i+'" data-swap="'+wpq(swap||'')+'"><b>'+escapeHtml(name)+'</b> '+info+
+  const uniUi = '<button type="button" class="wp-link wp-unibtn" onclick="wpToggleUni('+i+')">'+(uni?'✓ One side at a time':'⇆ One side at a time?')+'</button>';
+  return '<div class="wpex" id="wpb_'+i+'" data-swap="'+wpq(swap||'')+'" data-uni="'+(uni?'1':'')+'"><b>'+escapeHtml(name)+'</b> '+info+
     (swap?'<div class="wp-swapped">⇄ swapped in for '+escapeHtml(ex.name)+' — tracked separately</div>':'')+
     (ex.notes && !swap?'<div class="wp-exnote">'+escapeHtml(ex.notes)+'</div>':'')+lastTxt+
-    '<div>'+swapUi+'</div>'+
+    '<div class="wp-links">'+swapUi+' '+uniUi+'</div>'+
     '<div class="wp-swap" id="wpsw_'+i+'" style="display:none;">'+
       '<div class="wp-picklabel">Did something else instead?</div>'+chips+
       '<input id="wpswn_'+i+'" placeholder="Or type the exercise you did" aria-label="Substitute exercise">'+
       '<label class="wp-chk" style="margin:6px 0;"><input type="checkbox" id="wpswp_'+i+'"> Use this from now on (change my plan)</label>'+
       '<div class="wp-btns"><button type="button" onclick="wpSwapUse('+i+')">Use it</button><button type="button" class="suggest-btn" onclick="wpSwapOpen('+i+')">Cancel</button></div>'+
     '</div>'+
+    (uni?'<div class="wp-uni-head"><span></span><span>weight</span><span></span><span>L reps</span><span>R reps</span><span></span></div>':'')+
     '<div id="wpx_'+i+'">'+rows+'</div>'+
     '<button type="button" class="wp-link" onclick="wpAddSet('+i+')">+ add set</button></div>';
+}
+function wpToggleUni(i){
+  const blk = document.getElementById('wpb_'+i), box = document.getElementById('wpx_'+i); if(!blk || !box) return;
+  const on = blk.dataset.uni !== '1';
+  const ex = wplan().days[window._wpCurIdx].ex[i], bw = ex.kind==='bw';
+  const rows = [...box.querySelectorAll('.wprow')].map(r=>({w:r.querySelector('.wpw').value, r:r.querySelector('.wpr').value}));
+  box.innerHTML = rows.map((x,j)=> wpRowHtml(j, on ? {w:x.w, l:x.r, r:x.r, uni:true} : {w:x.w, r:x.r}, null, null, bw, on, null)).join('');
+  blk.dataset.uni = on ? '1' : '';
+  const oldHead = blk.querySelector('.wp-uni-head'); if(oldHead) oldHead.remove();
+  if(on){ const hd = document.createElement('div'); hd.className = 'wp-uni-head'; hd.innerHTML = '<span></span><span>weight</span><span></span><span>L reps</span><span>R reps</span><span></span>'; box.parentNode.insertBefore(hd, box); }
+  ex.uni = on; saveData();
+  const btn = blk.querySelector('.wp-unibtn'); if(btn) btn.textContent = on ? '✓ One side at a time' : '⇆ One side at a time?';
+  showToast(on ? 'Logging each side — enter left and right reps' : 'Back to regular sets');
 }
 function wpSwapOpen(i){ const el = document.getElementById('wpsw_'+i); if(el) el.style.display = el.style.display==='none' ? 'block' : 'none'; }
 function wpSwapPick(i, name){ const el = document.getElementById('wpswn_'+i); if(el) el.value = name; }
@@ -2385,12 +2433,24 @@ function wpSwapNote(){
   Object.keys(S).sort().forEach(d=>(S[d].ex||[]).forEach(e=>{ if(e.swapFor) out.push(fmtShort(d)+': '+e.swapFor+' → '+e.name); }));
   return out.length ? '<p style="font-size:.72rem;color:var(--sub);margin:8px 0 0;">Swapped lifts are tracked on their own: '+out.slice(-6).map(escapeHtml).join(' · ')+'</p>' : '';
 }
-function wpRowHtml(j, s, lw, lr, bw){
+function wpRowHtml(j, s, lw, lr, bw, uni, ll){
+  const nv = x => (x===undefined || x===null || x==='') ? '' : x;
+  const w = (s && s.w) ? s.w : '';
+  const ph = lw!=null ? lw : (bw ? 'bodyweight' : 'lb');
+  const pr = lr!=null ? lr : 'reps';
+  const del = '<button type="button" class="del-btn wp-delset" title="Delete this set" aria-label="Delete this set" onclick="wpDelSet(this)">✕</button>';
+  if(uni){
+    const pl = ll!=null ? ll : (lr!=null ? lr : 'reps');
+    return '<div class="wprow wprow-uni"><span class="wpn">'+(j+1)+'</span>'+
+      '<input class="wpw" type="number" inputmode="decimal" step="any" min="0" placeholder="'+ph+'" value="'+w+'">'+
+      '<span>×</span>'+
+      '<input class="wpl" type="number" inputmode="numeric" min="0" placeholder="L '+pl+'" value="'+nv(s&&s.l)+'" aria-label="Left side reps">'+
+      '<input class="wpr" type="number" inputmode="numeric" min="0" placeholder="R '+pr+'" value="'+nv(s&&s.r)+'" aria-label="Right side reps">'+del+'</div>';
+  }
   return '<div class="wprow"><span class="wpn">'+(j+1)+'</span>'+
-    '<input class="wpw" type="number" inputmode="decimal" step="any" min="0" placeholder="'+(lw!=null?lw:(bw?'bodyweight':'lb'))+'" value="'+(s&&s.w?s.w:'')+'">'+
+    '<input class="wpw" type="number" inputmode="decimal" step="any" min="0" placeholder="'+ph+'" value="'+w+'">'+
     '<span>×</span>'+
-    '<input class="wpr" type="number" inputmode="numeric" min="0" placeholder="'+(lr!=null?lr:'reps')+'" value="'+(s?s.r:'')+'">'+
-    '<button type="button" class="del-btn wp-delset" title="Delete this set" aria-label="Delete this set" onclick="wpDelSet(this)">✕</button></div>';
+    '<input class="wpr" type="number" inputmode="numeric" min="0" placeholder="'+pr+'" value="'+nv(s&&s.r)+'">'+del+'</div>';
 }
 function wpDelSet(btn){
   const row = btn.closest('.wprow'); if(!row) return;
@@ -2400,8 +2460,10 @@ function wpDelSet(btn){
 function wpAddSet(i){
   const box = document.getElementById('wpx_'+i); if(!box) return;
   if(box.querySelectorAll('.wprow').length>=5){ showToast('Up to 5 sets per exercise'); return; }
+  const blk = document.getElementById('wpb_'+i);
+  const uni = !!(blk && blk.dataset.uni==='1');
   const tmp = document.createElement('div');
-  tmp.innerHTML = wpRowHtml(box.querySelectorAll('.wprow').length, null, null, null);
+  tmp.innerHTML = wpRowHtml(box.querySelectorAll('.wprow').length, null, null, null, false, uni, null);
   box.appendChild(tmp.firstChild);
 }
 function wpFillLast(i){
@@ -2409,8 +2471,29 @@ function wpFillLast(i){
   const box = document.getElementById('wpx_'+i);
   while(box.querySelectorAll('.wprow').length < Math.min(5,m.length)) wpAddSet(i);
   box.querySelectorAll('.wprow').forEach((r,j)=>{
-    if(m[j]){ r.querySelector('.wpw').value = m[j].w; r.querySelector('.wpr').value = m[j].r; }
+    if(!m[j]) return;
+    r.querySelector('.wpw').value = m[j].w;
+    const l = r.querySelector('.wpl'); if(l) l.value = m[j].uni ? m[j].l : m[j].r;
+    r.querySelector('.wpr').value = m[j].r;
   });
+}
+function wpRenumber(){
+  const secs = [...document.querySelectorAll('#wpSecs .wp-sec')];
+  const names = {cardio:'Cardio', lift:'Lifting', abs:'Abs'};
+  secs.forEach((s,k)=>{ const n = s.querySelector('.wp-num'); if(n) n.textContent = k+1; });
+  const line = document.getElementById('wpOrderLine');
+  if(line) line.innerHTML = 'Do it in this order: '+secs.map((s,k)=>'<b>'+(k+1)+' '+names[s.dataset.g]+'</b>').join(' → ');
+  const btn = document.getElementById('wpCardioBtn');
+  if(btn) btn.textContent = (secs[0] && secs[0].dataset.g==='cardio') ? '⇅ Move cardio to the end' : '⇅ Move cardio to the start';
+}
+function wpToggleCardioPos(){
+  const wrap = document.getElementById('wpSecs'); if(!wrap) return;
+  const cs = wrap.querySelector('.wp-sec[data-g="cardio"]'); if(!cs) return;
+  const wasFirst = wrap.querySelector('.wp-sec') === cs;
+  if(wasFirst) wrap.appendChild(cs); else wrap.insertBefore(cs, wrap.firstChild);
+  const day = wplan().days[window._wpCurIdx]; if(day) day.cardioPos = wasFirst ? 'end' : 'start';
+  saveData(); wpRenumber();
+  showToast(wasFirst ? 'Cardio moved to the end' : 'Cardio moved to the start');
 }
 function renderWpSession(){
   const el = document.getElementById('wpSession'); if(!el) return;
@@ -2431,36 +2514,30 @@ function renderWpSession(){
   else if(pos) h += '<p class="wp-note">Week <b>'+pos.week+'</b> · scheduled: <b>'+escapeHtml(p.days[pos.idx].name)+'</b></p>';
   h += '<label class="wp-lbl">Plan day <select id="wpDaySel" onchange="setWpDay(this.value)">'+
     p.days.map((d,k)=>'<option value="'+k+'"'+(k===idx?' selected':'')+'>'+escapeHtml(d.name)+(pos&&!pos.before&&k===pos.idx?' (scheduled)':'')+'</option>').join('')+'</select></label>';
-  h += '<p class="wp-order">Do it in this order: <b>1 Cardio</b> → <b>2 Lifting</b> → <b>3 Abs</b></p>';
+  h += '<p class="wp-order" id="wpOrderLine"></p><button type="button" class="wp-link" id="wpCardioBtn" onclick="wpToggleCardioPos()">⇅ Move cardio to the end</button>';
   window._wpLastMap = {};
-  const order = day.ex.map((e,i)=>({e,i,g:wpGrp(e)})).sort((a,b)=>(WP_GRP_RANK[a.g]-WP_GRP_RANK[b.g])||(a.i-b.i));
-  const labels = {cardio:'1 · Cardio', lift:'2 · Lifting', abs:'3 · Abs'};
+  const items = day.ex.map((e,i)=>({e,i,g:wpGrp(e)}));
   const extras = saved ? (saved.ex||[]).filter(e=>e.extra) : [];
-  let wroteCardio = false;
-  const cardioHead = '<div class="wp-grp">'+labels.cardio+'</div>';
-  const extraBlock = ()=> '<div id="wpExtra">'+extras.map((e,k)=>wpCardioHtml('x'+k+'_s', e.name, '', '', null, e.min, true, true)).join('')+'</div>'+
-    '<button type="button" class="wp-link" onclick="wpAddExtra()">+ add another cardio</button>';
-  let lastG = null;
-  order.forEach(o=>{
-    if(o.g!==lastG){
-      if(lastG==='cardio') h += extraBlock();
-      if(o.g==='cardio'){ h += cardioHead; wroteCardio = true; }
-      else {
-        if(!wroteCardio){ h += cardioHead+'<div class="wp-exnote">Nothing planned today — add cardio if you want it.</div>'+extraBlock(); wroteCardio = true; }
-        h += '<div class="wp-grp">'+labels[o.g]+'</div>';
-      }
-      lastG = o.g;
-    }
-    if(o.g!=='cardio'){ const l = wpLast(o.e.name,date); if(l) window._wpLastMap[o.i] = l.sets; }
-    h += wpExBlock(o.e,o.i,saved,date,week);
+  const sec = {};
+  const cardioItems = items.filter(o=>o.g==='cardio');
+  sec.cardio = '<div class="wp-sec" data-g="cardio"><div class="wp-grp"><span class="wp-num"></span> · Cardio</div>'+
+    (cardioItems.length ? '' : '<div class="wp-exnote">Nothing planned today — add cardio if you want it.</div>')+
+    cardioItems.map(o=>wpExBlock(o.e,o.i,saved,date,week)).join('')+
+    '<div id="wpExtra">'+extras.map((e,k)=>wpCardioHtml('x'+k+'_s', e.name, '', '', null, e.min, true, true)).join('')+'</div>'+
+    '<button type="button" class="wp-link" onclick="wpAddExtra()">+ add another cardio</button></div>';
+  [['lift','Lifting'],['abs','Abs']].forEach(([g,label])=>{
+    const its = items.filter(o=>o.g===g);
+    if(!its.length){ sec[g] = ''; return; }
+    sec[g] = '<div class="wp-sec" data-g="'+g+'"><div class="wp-grp"><span class="wp-num"></span> · '+label+'</div>'+its.map(o=>wpExBlock(o.e,o.i,saved,date,week)).join('')+'</div>';
   });
-  if(lastG==='cardio') h += extraBlock();
-  if(!wroteCardio) h = h + cardioHead + extraBlock();
+  const seq = day.cardioPos==='end' ? ['lift','abs','cardio'] : ['cardio','lift','abs'];
+  h += '<div id="wpSecs">'+seq.map(g=>sec[g]).join('')+'</div>';
   h += '<div class="wp-grid2" style="margin-top:12px;"><label>Lifting minutes (optional)<input type="number" id="wpDur" min="0" inputmode="numeric" value="'+(saved&&saved.dur?saved.dur:'')+'"></label>'+
     '<label>Calories burned (optional)<input type="number" id="wpCals" min="0" inputmode="numeric" value="'+(saved&&saved.cals?saved.cals:'')+'"></label></div>'+
     '<button type="button" onclick="saveWpSession()" style="margin-top:10px;">'+(saved?'💾 Update session':'💾 Save session')+'</button>';
   if(saved) h += '<button type="button" class="suggest-btn" style="margin-top:8px;" onclick="deleteWpSession()">🗑️ Remove this session</button>';
   el.innerHTML = h;
+  wpRenumber();
 }
 function wpSyncLogs(date, sess){
   const L = (data.workoutLogs[date]||[]).filter(w=>!w.ps);
@@ -2473,7 +2550,7 @@ function wpSyncLogs(date, sess){
         if(e.kind==='cardio'){
           mine.push({id:uid('we'),name:e.name,type:'Cardio',duration:e.min||0,cals:0,time:Date.now(),ps:true,_c:1});
         } else if(e.sets && e.sets.length){
-          mine.push({id:uid('we'),name:e.name,type:'Strength',duration:0,cals:0,setsList:e.sets.slice(0,5).map(s=>({weight:s.w,reps:s.r})),note:'',time:Date.now(),ps:true});
+          mine.push({id:uid('we'),name:e.name,type:'Strength',duration:0,cals:0,setsList:e.sets.slice(0,5).map(s=>({weight:s.w,reps:wpEff(s)})),note:(e.uni ? 'One side at a time — '+e.sets.slice(0,5).map(s=>s.l+'L/'+s.r+'R').join(', ') : ''),time:Date.now(),ps:true});
         }
       });
       const tgt = mine.find(x=>x.type==='Strength') || mine[0];
@@ -2505,16 +2582,20 @@ function saveWpSession(){
       if(mn>0 || dn) ex.push({id:e.id, name:nm, kind:'cardio', min:mn, sets:[], done:true});
       return;
     }
+    const blk = document.getElementById('wpb_'+i);
+    const sw = (blk && blk.dataset.swap) || '';
+    const uni = !!(blk && blk.dataset.uni==='1');
     const sets = [];
     document.querySelectorAll('#wpx_'+i+' .wprow').forEach(r=>{
       const w = r.querySelector('.wpw').value, rp = r.querySelector('.wpr').value;
-      if(w==='' && rp==='') return;
-      sets.push({w:Number(w)||0, r:Number(rp)||0});
+      const lf = uni ? (r.querySelector('.wpl')||{}).value : '';
+      if(w==='' && rp==='' && !lf) return;
+      sets.push(uni ? {w:Number(w)||0, l:Number(lf)||0, r:Number(rp)||0, uni:true} : {w:Number(w)||0, r:Number(rp)||0});
     });
-    const blk = document.getElementById('wpb_'+i), sw = (blk && blk.dataset.swap) || '';
     if(sets.length){
       const item = {id:e.id, name:sw||e.name, kind:e.kind, sets};
       if(sw) item.swapFor = e.name;
+      if(uni) item.uni = true;
       ex.push(item);
     }
   });
@@ -2611,7 +2692,7 @@ function renderWpProg(){
       const b = topSet(e.sets); if(!b) return;
       const k = exKey(e.name); best[k] = best[k]||{};
       const cur = best[k][w];
-      if(!cur || b.w>cur.w || (b.w===cur.w && b.r>cur.r)) best[k][w] = b;
+      if(!cur || b.w>cur.w || (b.w===cur.w && wpEff(b)>wpEff(cur))) best[k][w] = b;
     });
   });
   let up=0, hold=0, started=0;
@@ -2627,7 +2708,7 @@ function renderWpProg(){
       if(!c){ cells += '<td class="mut">–</td>'; continue; }
       let cls='', arrow='';
       if(prev){
-        const diff = c.w!==prev.w ? c.w-prev.w : c.r-prev.r;
+        const diff = c.w!==prev.w ? c.w-prev.w : wpEff(c)-wpEff(prev);
         if(diff>0){ cls='up'; arrow=' ▲'; } else if(diff<0){ cls='dn'; arrow=' ▼'; }
       }
       cells += '<td class="'+cls+'">'+fmtSet(c,n.unit)+arrow+'</td>';
@@ -2635,7 +2716,7 @@ function renderWpProg(){
     }
     let chg = '<td class="mut">–</td>';
     if(first && latest && first!==latest){
-      const dw = Math.round((latest.w-first.w)*10)/10, dr = latest.r-first.r;
+      const dw = Math.round((latest.w-first.w)*10)/10, dr = wpEff(latest)-wpEff(first);
       started++;
       if(dw>0 || (dw===0 && dr>0)){ up++; chg = '<td class="up">'+(dw>0?'+'+dw+' lb':'+'+dr+' rep'+(dr===1?'':'s'))+'</td>'; }
       else if(dw===0 && dr===0){ hold++; chg = '<td>holding</td>'; }
@@ -3081,12 +3162,12 @@ function wpExportRows(weeks){
   Object.keys(data.workoutLogs||{}).filter(d=>d>=from && d<=t).sort().forEach(d=>(data.workoutLogs[d]||[]).forEach(w=>{ if(!w.ps) extra.push(Object.assign({date:d},w)); }));
   return {from, t, sessions, extra};
 }
-function wpVol(sets){ return (sets||[]).reduce((a,s)=>a+(s.w||0)*(s.r||0),0); }
+function wpVol(sets){ return (sets||[]).reduce((a,s)=>a+(s.w||0)*(s.uni ? (Number(s.l)||0)+(Number(s.r)||0) : (s.r||0)),0); }
 function wpExportMarkdown(weeks, incW, incN){
   const p = wplan(), R = wpExportRows(weeks), t = R.t, pos = planPos(t);
   const L = [];
   L.push('# Workout log export — '+(p.name||'My plan')+' ('+(weeks?('last '+weeks+' weeks'):'all time')+')');
-  L.push('Exported '+t+'. Units: lb. Sets are written weight×reps.'+(p.goal?' Training goal: '+p.goal+'.':'')+((p.tips||[]).length?' Plan notes: '+p.tips.join(' '):''));
+  L.push('Exported '+t+'. Units: lb. Sets are written weight×reps; one-sided (unilateral) sets are written weight×leftReps L/rightReps R (e.g. 40×10L/9R).'+(p.goal?' Training goal: '+p.goal+'.':'')+((p.tips||[]).length?' Plan notes: '+p.tips.join(' '):''));
   L.push('');
   L.push('> Suggested prompt: "Analyze this workout log. Look at strength trends per lift, weekly volume per muscle group, consistency, plateaus or imbalances, and whether my weights/reps are progressing while I cut. Then suggest specific changes for the next 4 weeks."');
   L.push('');
@@ -3121,7 +3202,7 @@ function wpExportMarkdown(weeks, incW, incN){
       if(e.kind==='cardio' || !e.sets || !e.sets.length) return;
       const k = exKey(e.name); best[k] = best[k]||{}; vol[k] = vol[k]||{};
       const b = topSet(e.sets), c = best[k][s.week];
-      if(!c || b.w>c.w || (b.w===c.w && b.r>c.r)) best[k][s.week] = b;
+      if(!c || b.w>c.w || (b.w===c.w && wpEff(b)>wpEff(c))) best[k][s.week] = b;
       vol[k][s.week] = (vol[k][s.week]||0) + wpVol(e.sets);
     }); });
     L.push('## Best set per week (weight×reps)');
@@ -3175,14 +3256,18 @@ function wpExportMarkdown(weeks, incW, incN){
 function wpCsvCell(v){ v = String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
 function wpExportCsv(weeks){
   const R = wpExportRows(weeks);
-  const rows = [['date','week','plan_day','category','exercise','swapped_for','set','weight_lb','reps_or_seconds','minutes']];
+  const rows = [['date','week','plan_day','category','exercise','swapped_for','set','weight_lb','reps_or_seconds','minutes','side']];
   R.sessions.forEach(s=>s.ex.forEach(e=>{
-    if(e.kind==='cardio') rows.push([s.date,s.week||'',s.day,'cardio',e.name,'','','','',e.min||'']);
-    else (e.sets||[]).forEach((x,j)=>rows.push([s.date,s.week||'',s.day,wpGrp({kind:e.kind,name:e.name}),e.name,e.swapFor||'',j+1,x.w||0,x.r,'']));
+    if(e.kind==='cardio') rows.push([s.date,s.week||'',s.day,'cardio',e.name,'','','','',e.min||'','']);
+    else (e.sets||[]).forEach((x,j)=>{
+      const base = [s.date,s.week||'',s.day,wpGrp({kind:e.kind,name:e.name}),e.name,e.swapFor||'',j+1,x.w||0];
+      if(x.uni){ rows.push(base.concat([x.l,'','L'])); rows.push(base.concat([x.r,'','R'])); }
+      else rows.push(base.concat([x.r,'','']));
+    });
   }));
   R.extra.forEach(w=>{
-    if(w.type==='Strength') getSetsList(w).forEach((x,j)=>rows.push([w.date,'','(extra)','strength',w.name,'',j+1,x.weight,x.reps,'']));
-    else rows.push([w.date,'','(extra)',w.type.toLowerCase(),w.name,'','','','',w.duration||'']);
+    if(w.type==='Strength') getSetsList(w).forEach((x,j)=>rows.push([w.date,'','(extra)','strength',w.name,'',j+1,x.weight,x.reps,'','']));
+    else rows.push([w.date,'','(extra)',w.type.toLowerCase(),w.name,'','','','',w.duration||'','']);
   });
   return rows.map(r=>r.map(wpCsvCell).join(',')).join('\n');
 }
@@ -3376,19 +3461,39 @@ function updateDayBar(){
   document.getElementById('calcAddBtn').textContent = past ? '➕ Add to '+nm+' log' : '➕ Add to today\'s log';
   document.getElementById('mdAddBtn').textContent = past ? '➕ Add to '+nm+' log' : '➕ Add to today\'s log';
 }
-/* Copy a meal from any day onto today (for a one-off you ate again) */
+/* Add a past (or any) meal to the day and meal slot you choose */
+window._copyMeal = null;
 function copyEntryToToday(date, id){
   const e = (data.logs[date]||[]).find(x=>x.id===id);
   if(!e) return;
+  window._copyMeal = {date, id};
   const t = todayStr();
+  document.getElementById('cmName').textContent = e.name+' · '+Math.round(Number(e.cals)||0)+' cal';
+  const dt = document.getElementById('cmDate'); dt.max = t; dt.value = t;
+  document.getElementById('cmMeal').value = e.meal || 'Snack';
+  document.getElementById('copyMealModal').classList.add('open');
+}
+function closeCopyMeal(){
+  document.getElementById('copyMealModal').classList.remove('open');
+  window._copyMeal = null;
+}
+function confirmCopyMeal(){
+  const c = window._copyMeal; if(!c) return;
+  const e = (data.logs[c.date]||[]).find(x=>x.id===c.id);
+  if(!e){ closeCopyMeal(); return; }
+  const t = todayStr();
+  let d = document.getElementById('cmDate').value || t;
+  if(d>t) d = t;
+  const meal = document.getElementById('cmMeal').value || e.meal || 'Snack';
   const copy = JSON.parse(JSON.stringify(e));
-  copy.id = uid('e'); copy.time = Date.now();
-  if(!data.logs[t]) data.logs[t] = [];
-  data.logs[t].push(copy);
+  copy.id = uid('e'); copy.time = Date.now(); copy.meal = meal;
+  if(!data.logs[d]) data.logs[d] = [];
+  data.logs[d].push(copy);
   saveData();
+  closeCopyMeal();
   renderToday();
   if(typeof renderHistory==='function') renderHistory();
-  showToast(e.name+' added to today ✓');
+  showToast(e.name+' added to '+(d===t ? 'today' : fmtShort(d))+' · '+meal+' ✓');
 }
 
 function getTodayLog(){
@@ -3847,7 +3952,7 @@ function renderLog(log){
         '<div class="macros">P '+(e.p||0)+'g · C '+(e.c||0)+'g · F '+(e.f||0)+'g · Fiber '+(e.fi||0)+'g'+(trk().na ? ' · Sodium '+(e.na||0)+'mg' : '')+(trk().su ? ' · Sugar '+(e.su||0)+'g' : '')+(trk().ch ? ' · Chol '+(e.ch||0)+'mg' : '')+ingLine+'</div></div>'+
         '<div class="right"><span class="cals">'+e.cals+' cal</span>'+
         '<button class="del-btn" title="Edit" onclick="openFoodEdit(\''+currentDate+'\',\''+e.id+'\')">✏️</button>'+
-        (isViewingToday() ? '' : '<button class="del-btn" title="Copy to today" onclick="copyEntryToToday(\''+currentDate+'\',\''+e.id+'\')">📋</button>')+
+        '<button class="del-btn" title="Add to another day / meal" onclick="copyEntryToToday(\''+currentDate+'\',\''+e.id+'\')">📋</button>'+
         '<button class="del-btn" onclick="deleteEntry(\''+e.id+'\')">✕</button></div>';
       container.appendChild(row);
     });
@@ -4376,41 +4481,77 @@ function histEl(tag, cls, text){
   return e;
 }
 
+function histGoalFor(m){
+  if(m==='cals') return data.goal;
+  if(m==='fi') return Number(data.fiberGoal)||0;
+  return macroGoals()[m] || 0;
+}
+function histHigherBetter(m){ return m==='p' || m==='fi'; }
+function histStatusFor(m, val, goal){
+  if(!val) return 'none';
+  if(!goal) return 'good';
+  if(histHigherBetter(m)) return val>=goal ? 'good' : (val>=goal*0.8 ? 'warn' : 'over');
+  return val<=goal ? 'good' : (val<=goal*1.1 ? 'warn' : 'over');
+}
+const HIST_METRICS = {cals:{label:'Calories',unit:' cal'}, p:{label:'Protein',unit:'g'}, c:{label:'Carbs',unit:'g'}, f:{label:'Fat',unit:'g'}, fi:{label:'Fiber',unit:'g'}};
+let historyMetric = 'cals';
+function setHistoryMetric(m){
+  historyMetric = HIST_METRICS[m] ? m : 'cals';
+  document.querySelectorAll('#histMetric button').forEach(b=> b.classList.toggle('active', b.dataset.m===historyMetric));
+  renderHistory();
+}
 function renderHistory(){
   const dates = lastNDates(historyRange);
   const days = dates.map(d=> Object.assign({d:d}, dayInfo(d)));
-  const goal = data.goal;
+  const M = historyMetric, MI = HIST_METRICS[M];
+  const val = x => M==='cals' ? x.cals : (x[M]||0);
+  const goal = histGoalFor(M);
+  const calGoal = data.goal;
   if(!historySelected || dates.indexOf(historySelected)===-1) historySelected = dates[dates.length-1];
   const H = 150;
-  const maxVal = Math.max(goal*1.15, ...days.map(x=>x.cals), 1);
+  const maxVal = Math.max(goal*1.15, ...days.map(val), 1);
+  const fmtV = v => M==='cals' ? fmtN(v) : String(Math.round(v*10)/10);
 
   // summary
   const logged = days.filter(x=>x.cals>0);
   const stats = document.getElementById('histStats');
+  const mt = document.getElementById('histMetricTitle');
+  if(mt) mt.textContent = MI.label+' by day'+(goal ? ' · goal '+fmtN(goal)+MI.unit : '');
   if(logged.length===0){
     stats.textContent = 'No meals logged in the last '+historyRange+' days yet.';
   } else {
-    const total = logged.reduce((s,x)=>s+x.cals,0);
-    const ok = logged.filter(x=>x.cals<=goal).length;
-    stats.textContent = 'Average '+fmtN(Math.round(total/logged.length))+' cal/day over '+logged.length+' logged day'+(logged.length>1?'s':'')+
-      ' · '+ok+' at or under your '+fmtN(goal)+' goal · total '+fmtN(total)+' cal';
+    const total = logged.reduce((s,x)=>s+val(x),0);
+    const hb = histHigherBetter(M);
+    const ok = goal ? logged.filter(x=> hb ? val(x)>=goal : val(x)<=goal).length : 0;
+    stats.textContent = 'Average '+fmtV(Math.round(total/logged.length*10)/10)+MI.unit+'/day over '+logged.length+' logged day'+(logged.length>1?'s':'')+
+      (goal ? ' · '+ok+(hb ? ' hit your ' : ' at or under your ')+fmtN(goal)+MI.unit+' goal' : '')+(M==='cals' ? ' · total '+fmtN(total)+' cal' : '');
+  }
+  const lg = document.getElementById('histLegend');
+  if(lg){
+    const dash = '<span><i style="background:transparent;border-top:2px dashed var(--yellow);height:0;width:14px;border-radius:0;margin-bottom:3px;"></i>Goal</span>';
+    lg.innerHTML = histHigherBetter(M)
+      ? '<span><i style="background:var(--good);"></i>Hit your goal</span><span><i style="background:var(--yellow);"></i>80–99% of goal</span><span><i style="background:var(--coral);"></i>Under 80%</span>'+dash
+      : '<span><i style="background:var(--good);"></i>At or under goal</span><span><i style="background:var(--yellow);"></i>Up to 10% over</span><span><i style="background:var(--coral);"></i>More than 10% over</span>'+dash;
   }
 
   // bars
   const chart = document.getElementById('chart7');
   chart.innerHTML = '';
-  const gl = histEl('div','goal-line');
-  gl.style.bottom = (goal/maxVal*H)+'px';
-  gl.appendChild(histEl('span','', 'Goal '+fmtN(goal)));
-  chart.appendChild(gl);
+  if(goal){
+    const gl = histEl('div','goal-line');
+    gl.style.bottom = (goal/maxVal*H)+'px';
+    gl.appendChild(histEl('span','', 'Goal '+fmtN(goal)));
+    chart.appendChild(gl);
+  }
   const showVals = historyRange<=14;
   days.forEach(x=>{
+    const v = val(x);
     const col = histEl('button','hcol'+(x.d===historySelected ? ' sel' : ''));
     col.type = 'button';
-    col.title = x.d+': '+x.cals+' cal';
-    if(showVals) col.appendChild(histEl('div','hval', x.cals ? fmtN(x.cals) : '–'));
-    const bar = histEl('div','hbar '+dayStatus(x.cals, goal));
-    bar.style.height = Math.max(x.cals ? 4 : 2, x.cals/maxVal*H)+'px';
+    col.title = x.d+': '+fmtV(v)+MI.unit;
+    if(showVals) col.appendChild(histEl('div','hval', v ? fmtV(v) : '–'));
+    const bar = histEl('div','hbar '+histStatusFor(M, v, goal));
+    bar.style.height = Math.max(v ? 4 : 2, v/maxVal*H)+'px';
     col.appendChild(bar);
     col.onclick = function(){ historySelected = x.d; renderHistory(); };
     chart.appendChild(col);
@@ -4432,7 +4573,7 @@ function renderHistory(){
     dl.appendChild(cell);
   });
 
-  renderHistoryDetail(days.find(x=>x.d===historySelected), goal);
+  renderHistoryDetail(days.find(x=>x.d===historySelected), calGoal);
 
   // list
   const list = document.getElementById('historyList');
@@ -4444,7 +4585,7 @@ function renderHistory(){
     main.appendChild(histEl('span','', (x.d===todayStr() ? 'Today · ' : '')+d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})));
     const right = histEl('span');
     right.appendChild(histEl('b','', fmtN(x.cals)+' cal'));
-    right.appendChild(histEl('span','pct', ' ('+Math.round(x.cals/goal*100)+'%)'));
+    right.appendChild(histEl('span','pct', ' ('+Math.round(x.cals/calGoal*100)+'%)'));
     main.appendChild(right);
     row.appendChild(main);
     row.appendChild(histEl('div','h-sub', x.cals||x.log.length
@@ -4459,7 +4600,6 @@ function renderHistory(){
     list.appendChild(row);
   });
 }
-
 function renderHistoryDetail(x, goal){
   const box = document.getElementById('histDetail');
   box.innerHTML = '';
@@ -4514,8 +4654,8 @@ function renderHistoryDetail(x, goal){
         ed.type = 'button';
         ed.onclick = function(){ openFoodEdit(x.d, e.id); };
         acts.appendChild(ed);
-        if(x.d!==todayStr()){
-          const cp = histEl('button','', '➕ Today');
+        {
+          const cp = histEl('button','', '➕ Add to…');
           cp.type = 'button';
           cp.onclick = function(){ copyEntryToToday(x.d, e.id); };
           acts.appendChild(cp);
@@ -5339,10 +5479,33 @@ function renderGotoManage(){
     const opts = ['Breakfast','Lunch','Dinner','Snack'].map(n=>'<option'+(m.meal===n?' selected':'')+'>'+n+'</option>').join('');
     row.innerHTML = '<span style="flex:1;">'+escapeHtml(m.name)+' — '+m.cals+' cal</span>'+
       '<select title="Meal slot" onchange="setGotoMeal(\''+m.id+'\',this.value)" style="font-size:16px;margin:0 6px;background:var(--card2);color:var(--text);border:1px solid #3a4778;border-radius:8px;padding:4px;">'+opts+'</select>'+
+      '<button onclick="gotoToIngredient(\''+m.id+'\')" title="Also save as an ingredient" style="margin-right:4px;">🥕</button>'+
       '<button onclick="openGotoEdit(\''+m.id+'\',true)" title="Edit ingredients and macros" style="margin-right:4px;">✏️</button>'+
       '<button onclick="removeGoto(\''+m.id+'\')">✕</button>';
     wrap.appendChild(row);
   });
+}
+/* Turn a go-to meal into a library ingredient, or an ingredient into a go-to meal */
+function gotoToIngredient(id){
+  const m = data.goToMeals.find(x=>x.id===id); if(!m) return;
+  const name = String(m.name||'').trim();
+  if(!name) return;
+  if(exactIngredient(name)){ showToast('"'+name+'" is already in your ingredient list'); return; }
+  data.customIngredients.push({id:uid('ci'), name:name, servingAmount:1, servingUnit:'serving', servingGrams:0,
+    cal:Number(m.cals)||0, p:Number(m.p)||0, c:Number(m.c)||0, f:Number(m.f)||0, fi:Number(m.fi)||0, na:Number(m.na)||0, su:Number(m.su)||0, ch:Number(m.ch)||0,
+    store:guessStore(name), source:'meal'});
+  saveData();
+  if(typeof renderIngredientsTab==='function') renderIngredientsTab();
+  showToast('"'+name+'" saved as an ingredient (1 serving = the whole meal). The go-to meal is still there.');
+}
+function ingredientToGoto(id){
+  const it = (data.customIngredients||[]).find(x=>x.id===id); if(!it) return;
+  const meal = {id:uid('g'), name:it.name, meal:'Snack', cals:Number(it.cal)||0, p:Number(it.p)||0, c:Number(it.c)||0, f:Number(it.f)||0, fi:Number(it.fi)||0, na:Number(it.na)||0, su:Number(it.su)||0, ch:Number(it.ch)||0,
+    ingredients:[{name:it.name, amount:Number(it.servingAmount)||1, unit:it.servingUnit||'serving', cal:Number(it.cal)||0, p:Number(it.p)||0, c:Number(it.c)||0, f:Number(it.f)||0, fi:Number(it.fi)||0, na:Number(it.na)||0, su:Number(it.su)||0, ch:Number(it.ch)||0}]};
+  data.goToMeals.push(meal);
+  saveData();
+  renderQuickGrid();
+  showToast('"'+it.name+'" is now a go-to meal (1 serving, set to Snack — change the slot in Settings). The ingredient is still there.');
 }
 function setGotoMeal(id, meal){
   const m = data.goToMeals.find(x=>x.id===id);
@@ -5913,6 +6076,12 @@ function renderIngredientLibrary(){
     del.title = 'Delete';
     del.textContent = '✕';
     del.onclick = function(){ removeCustomIngredient(it.id); };
+    if(it.custom){
+      const mk = document.createElement('button');
+      mk.type = 'button'; mk.className = 'lib-edit'; mk.title = 'Make a go-to meal from this'; mk.textContent = '🍽️';
+      mk.onclick = function(){ ingredientToGoto(it.id); };
+      actions.appendChild(mk);
+    }
     actions.appendChild(edit);
     actions.appendChild(del);
     top.appendChild(actions);
