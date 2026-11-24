@@ -832,6 +832,15 @@
       <div class="hist-detail" id="histDetail"></div>
     </div>
     <div class="card" data-mode="nutrition">
+      <h3>🤖 Export for Claude review</h3>
+      <p style="font-size:.75rem;color:var(--sub);margin-top:-6px;">Goals, daily totals and every meal with its macros and ingredients. Paste or upload it to Claude for feedback.</p>
+      <div class="field"><label for="nxRange">Time period</label>
+        <select id="nxRange"><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30">Last 30 days</option></select></div>
+      <button type="button" class="save-modal" onclick="nxCopy()">📋 Copy for Claude</button>
+      <button type="button" class="suggest-btn" style="margin-top:8px;" onclick="nxDownload('md')">⬇️ Download text (.md)</button>
+      <button type="button" class="suggest-btn" style="margin-top:8px;" onclick="nxDownload('csv')">📊 Download Excel (.csv)</button>
+    </div>
+    <div class="card" data-mode="nutrition">
       <h3>🗓️ Daily totals</h3>
       <p style="font-size:.75rem;color:var(--sub);margin-top:-6px;">Tap a day to see its meals, macros and workouts.</p>
       <div class="history-list" id="historyList"></div>
@@ -3290,6 +3299,92 @@ function wpExportDownload(kind){
 }
 function wpExportCopy(){
   const o = wpExportOpts(), text = wpExportMarkdown(o.weeks,o.incW,o.incN);
+  const fallback = ()=>{ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); showToast('Copied — paste it into Claude ✓'); }catch(e){ showToast('Could not copy — use Download'); } document.body.removeChild(ta); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>showToast('Copied — paste it into Claude ✓'), fallback);
+  else fallback();
+}
+
+/* ---------- Nutrition export (for Claude review) ---------- */
+function nxRange(){ return Number((document.getElementById('nxRange')||{}).value)||7; }
+function nxIngText(e){
+  return (e.ingredients||[]).map(i=>i.name+(i.amount?' '+i.amount+(i.unit?' '+i.unit:''):'')).join('; ');
+}
+function nxMarkdown(n){
+  const dates = lastNDates(n), t = todayStr();
+  const goal = data.goal, mg = macroGoals(), fg = Number(data.fiberGoal)||0, tk = trk();
+  const days = dates.map(d=>Object.assign({d:d}, dayInfo(d)));
+  const logged = days.filter(x=>x.cals>0);
+  const r0 = v=>Math.round(v), r1 = v=>Math.round(v*10)/10;
+  const avg = k => logged.length ? r1(logged.reduce((a,x)=>a+(Number(x[k])||0),0)/logged.length) : 0;
+  const L = [];
+  L.push('# Nutrition export — last '+n+' days ('+dates[0]+' to '+t+')');
+  L.push('Exported '+t+'. Units: calories in cal, protein/carbs/fat/fiber/sugar in g, sodium/cholesterol in mg.');
+  L.push('');
+  L.push('> Suggested prompt: "Review my nutrition for this period. Compare my calories and macros against my goals, point out patterns (best and worst days, meals that push me over or leave me short on protein/fiber), check whether my intake supports my weight goal and training, and give me 5 specific, practical changes for next week — including meal swaps using foods I already eat."');
+  L.push('');
+  L.push('## Goals');
+  L.push('- Daily calories: '+goal);
+  L.push('- Protein '+mg.p+' g · Carbs '+mg.c+' g · Fat '+mg.f+' g'+(fg?' · Fiber '+fg+' g':''));
+  const wg = data.weightGoal||{};
+  if(wg.goalWeight) L.push('- Weight goal: '+wg.goalWeight+' lb'+(wg.targetDate?' by '+wg.targetDate:'')+' (started '+(wg.startWeight||'?')+' lb'+(wg.startDate?' on '+wg.startDate:'')+')');
+  const ws = Object.keys(data.weightLogs||{}).filter(d=>d>=dates[0]&&d<=t).sort();
+  if(ws.length) L.push('- Weigh-ins this period: '+ws.map(d=>d+': '+data.weightLogs[d]+' lb').join(', '));
+  L.push('');
+  L.push('## Summary');
+  if(!logged.length){ L.push('No meals logged in this period.'); L.push(''); return L.join('\n'); }
+  L.push('- Days with meals logged: '+logged.length+' of '+n+(logged.length<n?' (missing days are not logged, not zero-calorie days)':''));
+  L.push('- Average per logged day: '+r0(avg('cals'))+' cal ('+Math.round(avg('cals')/goal*100)+'% of goal), P '+avg('p')+' / C '+avg('c')+' / F '+avg('f')+' / fiber '+avg('fi')+(tk.na?' / sodium '+r0(avg('na')):'')+(tk.su?' / sugar '+avg('su'):'')+(tk.ch?' / chol '+r0(avg('ch')):''));
+  const cnt = f => logged.filter(f).length;
+  L.push('- Days at or under calorie goal: '+cnt(x=>x.cals<=goal)+'/'+logged.length+' · over by more than 10%: '+cnt(x=>x.cals>goal*1.1));
+  if(mg.p) L.push('- Days hitting protein goal ('+mg.p+' g): '+cnt(x=>x.p>=mg.p)+'/'+logged.length+' · average protein is '+Math.round(avg('p')/mg.p*100)+'% of goal');
+  if(fg) L.push('- Days hitting fiber goal ('+fg+' g): '+cnt(x=>x.fi>=fg)+'/'+logged.length);
+  const bs = logged.slice().sort((a,b)=>a.cals-b.cals);
+  L.push('- Lowest-calorie day: '+bs[0].d+' ('+bs[0].cals+' cal) · highest: '+bs[bs.length-1].d+' ('+bs[bs.length-1].cals+' cal)');
+  const kcalP = avg('p')*4, kcalC = avg('c')*4, kcalF = avg('f')*9, tot = kcalP+kcalC+kcalF;
+  if(tot) L.push('- Average macro split by calories: protein '+Math.round(kcalP/tot*100)+'% / carbs '+Math.round(kcalC/tot*100)+'% / fat '+Math.round(kcalF/tot*100)+'%');
+  L.push('');
+  L.push('## Daily totals');
+  L.push('| Date | Cal | vs goal | Protein | Carbs | Fat | Fiber |'+(tk.na?' Sodium |':'')+(tk.su?' Sugar |':'')+(tk.ch?' Chol |':'')+' Burned |');
+  L.push('|---|---|---|---|---|---|---|'+(tk.na?'---|':'')+(tk.su?'---|':'')+(tk.ch?'---|':'')+'---|');
+  days.forEach(x=>{
+    if(!x.cals && !x.log.length){ L.push('| '+x.d+' | not logged |'+' |'.repeat(5+(tk.na?1:0)+(tk.su?1:0)+(tk.ch?1:0)+1)); return; }
+    const df = x.cals-goal;
+    L.push('| '+x.d+' | '+x.cals+' | '+(df>0?'+':'')+df+' | '+x.p+' | '+x.c+' | '+x.f+' | '+x.fi+' |'+(tk.na?' '+x.na+' |':'')+(tk.su?' '+x.su+' |':'')+(tk.ch?' '+x.ch+' |':'')+' '+(x.burn||0)+' |');
+  });
+  L.push('');
+  L.push('## Meals by day');
+  ['Breakfast','Lunch','Dinner','Snack'];
+  const order = {Breakfast:0,Lunch:1,Dinner:2,Snack:3};
+  days.forEach(x=>{
+    if(!x.log.length) return;
+    L.push('### '+x.d+' — '+x.cals+' cal');
+    x.log.slice().sort((a,b)=>(order[a.meal]-order[b.meal])||((a.time||0)-(b.time||0))).forEach(e=>{
+      const ing = nxIngText(e);
+      L.push('- **'+(e.meal||'Meal')+'** — '+e.name+': '+r0(Number(e.cals)||0)+' cal, P '+r1(Number(e.p)||0)+' / C '+r1(Number(e.c)||0)+' / F '+r1(Number(e.f)||0)+' / fiber '+r1(Number(e.fi)||0)+
+        (tk.na?' / Na '+r0(Number(e.na)||0):'')+(tk.su?' / sugar '+r1(Number(e.su)||0):'')+(tk.ch?' / chol '+r0(Number(e.ch)||0):'')+(ing?' (ingredients: '+ing+')':''));
+    });
+    if(x.workouts.length) L.push('- Workouts: '+x.workouts.map(w=>w.name+' ('+w.type+(w.cals?', '+w.cals+' cal burned':'')+')').join('; '));
+    L.push('');
+  });
+  return L.join('\n');
+}
+function nxCsv(n){
+  const dates = lastNDates(n);
+  const rows = [['date','meal','item','calories','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_g','cholesterol_mg','ingredients']];
+  dates.forEach(d=>(data.logs[d]||[]).forEach(e=>rows.push([d,e.meal||'',e.name,Number(e.cals)||0,Number(e.p)||0,Number(e.c)||0,Number(e.f)||0,Number(e.fi)||0,Number(e.na)||0,Number(e.su)||0,Number(e.ch)||0,nxIngText(e)])));
+  const mg = macroGoals();
+  rows.push([]);
+  rows.push(['GOALS','','daily','calorie goal '+data.goal,'protein '+mg.p,'carbs '+mg.c,'fat '+mg.f,'fiber '+(Number(data.fiberGoal)||0)]);
+  return rows.map(r=>r.map(wpCsvCell).join(',')).join('\n');
+}
+function nxDownload(kind){
+  const n = nxRange();
+  if(kind==='csv') wpDownloadText('soul-balance-nutrition-'+n+'d-'+todayStr()+'.csv', nxCsv(n), 'text/csv');
+  else wpDownloadText('soul-balance-nutrition-'+n+'d-'+todayStr()+'.md', nxMarkdown(n), 'text/markdown');
+  showToast('Export downloaded ✓');
+}
+function nxCopy(){
+  const text = nxMarkdown(nxRange());
   const fallback = ()=>{ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); showToast('Copied — paste it into Claude ✓'); }catch(e){ showToast('Could not copy — use Download'); } document.body.removeChild(ta); };
   if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>showToast('Copied — paste it into Claude ✓'), fallback);
   else fallback();
